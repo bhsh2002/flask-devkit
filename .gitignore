@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+develop-eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+.env
+
+# Virtual environments
+.venv/
+venv/
+env/
+/htmlcov/
+
+# Test and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+/devkit.db
+
+# Logs
+*.log
+
+# Poetry
+.poetry/
+poetry.lock
+
+# Alembic
+migrations/versions/*.pyc
