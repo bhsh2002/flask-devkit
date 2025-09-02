@@ -1,6 +1,6 @@
 # tests/core/test_integrity_errors.py
 import pytest
-from flask import Flask
+from apiflask import APIFlask
 from sqlalchemy import Column, Integer, String, UniqueConstraint
 
 from flask_devkit.core.exceptions import DuplicateEntryError
@@ -23,7 +23,7 @@ def integrity_repo(db_session):
 
 
 def test_duplicate_entry_maps_to_custom_exception(integrity_repo, db_session):
-    app = Flask(__name__)
+    app = APIFlask(__name__)
     with app.app_context():
         integrity_repo.create({"name": "A"})
         db_session.commit()

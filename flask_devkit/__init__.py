@@ -1,7 +1,7 @@
 # flask_devkit/__init__.py
 from typing import Callable, Optional
 
-from flask import Flask
+from apiflask import APIFlask
 from flask_jwt_extended import JWTManager
 
 from flask_devkit.database import db
@@ -12,7 +12,7 @@ from flask_devkit.users.services import PermissionService, RoleService, UserServ
 class DevKit:
     def __init__(
         self,
-        app: Optional[Flask] = None,
+        app: Optional[APIFlask] = None,
         additional_claims_loader: Optional[Callable] = None,
     ):
         self.additional_claims_loader = additional_claims_loader
@@ -23,7 +23,7 @@ class DevKit:
         if app is not None:
             self.init_app(app)
 
-    def init_app(self, app: Flask):
+    def init_app(self, app: APIFlask):
         """Initialize the extension with the Flask app."""
         if not hasattr(app, "extensions"):
             app.extensions = {}
@@ -48,7 +48,7 @@ class DevKit:
         # Create and register blueprints
         self._register_blueprints(app)
 
-    def _register_blueprints(self, app: Flask):
+    def _register_blueprints(self, app: APIFlask):
         """Register all blueprints for the auth system."""
         from flask_devkit.helpers.routing import (
             register_crud_routes,

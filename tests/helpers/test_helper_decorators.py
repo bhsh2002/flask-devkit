@@ -2,14 +2,15 @@
 from unittest.mock import patch
 
 import pytest
-from flask import Flask, jsonify
+from apiflask import APIFlask
+from flask import jsonify
 
 from flask_devkit.helpers.decorators import log_activity, setup_rate_limiting
 
 
 @pytest.fixture
 def app():
-    app = Flask(__name__)
+    app = APIFlask(__name__)
     app.config["TESTING"] = True
     # For Flask-Limiter
     app.config["RATELIMIT_STORAGE_URI"] = "memory://"

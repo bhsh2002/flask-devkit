@@ -1,6 +1,7 @@
 # tests/auth/test_decorators.py
 import pytest
-from flask import Flask, jsonify
+from apiflask import APIFlask
+from flask import jsonify
 from flask_jwt_extended import JWTManager, create_access_token
 
 from flask_devkit.auth.decorators import permission_required
@@ -9,7 +10,7 @@ from flask_devkit.core.exceptions import PermissionDeniedError
 
 @pytest.fixture
 def app():
-    app = Flask(__name__)
+    app = APIFlask(__name__)
     app.config["JWT_SECRET_KEY"] = "secret"
     JWTManager(app)
 
