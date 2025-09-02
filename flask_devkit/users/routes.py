@@ -82,9 +82,10 @@ def create_all_blueprints():
         }
 
     @auth_bp.get("/me")
-    @jwt_required()
     @auth_bp.output(user_schemas["main"])
     @auth_bp.doc(summary="Current Authenticated User")
+    @auth_bp.auth_required("jwt")
+    @jwt_required()
     def whoami():
         user_uuid = get_jwt_identity()
         devkit = _get_devkit_extension()
@@ -205,9 +206,10 @@ def login(json_data):
 
 
 @auth_bp.get("/me")
-@jwt_required()
 @auth_bp.output(user_schemas["main"])
 @auth_bp.doc(summary="Current Authenticated User")
+@auth_bp.auth_required("jwt")
+@jwt_required()
 def whoami():
     user_uuid = get_jwt_identity()
     devkit = _get_devkit_extension()
