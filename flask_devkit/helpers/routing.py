@@ -159,32 +159,44 @@ def register_crud_routes(
         return {"message": f"{entity_name.capitalize()} deleted successfully."}
 
     if cfg.get("list", {}).get("enabled", True):
+        list_doc_params = {"summary": f"List all {entity_name}s", "tags": tags}
+        if cfg.get("list", {}).get("auth_required", True):
+            list_doc_params["security"] = "bearerAuth"
+
         list_decorators: List[Callable] = [
             bp.get("/"),
             bp.input(query_schema, location="query"),
             bp.output(pagination_out_schema),
-            bp.doc(summary=f"List all {entity_name}s", tags=tags),
+            bp.doc(**list_doc_params),
         ] + get_route_decorators(
             "list", default_require_auth=True, default_permission=None
         )
         list_items = _apply_decorators(list_items, list_decorators)
 
     if cfg.get("get", {}).get("enabled", True):
+        get_doc_params = {"summary": f"Get a single {entity_name}", "tags": tags}
+        if cfg.get("get", {}).get("auth_required", True):
+            get_doc_params["security"] = "bearerAuth"
+
         get_decorators: List[Callable] = [
             bp.get(f"/<{id_field}>"),
             bp.output(main_schema),
-            bp.doc(summary=f"Get a single {entity_name}", tags=tags),
+            bp.doc(**get_doc_params),
         ] + get_route_decorators(
             "get", default_require_auth=True, default_permission=None
         )
         get_item = _apply_decorators(get_item, get_decorators)
 
     if cfg.get("create", {}).get("enabled", True):
+        create_doc_params = {"summary": f"Create a new {entity_name}", "tags": tags}
+        if cfg.get("create", {}).get("auth_required", True):
+            create_doc_params["security"] = "bearerAuth"
+
         create_decorators: List[Callable] = [
             bp.post("/"),
             bp.input(input_schema),
             bp.output(main_schema, status_code=201),
-            bp.doc(summary=f"Create a new {entity_name}", tags=tags),
+            bp.doc(**create_doc_params),
         ] + get_route_decorators(
             "create",
             default_require_auth=True,
@@ -193,11 +205,15 @@ def register_crud_routes(
         create_item = _apply_decorators(create_item, create_decorators)
 
     if cfg.get("update", {}).get("enabled", True):
+        update_doc_params = {"summary": f"Update an existing {entity_name}", "tags": tags}
+        if cfg.get("update", {}).get("auth_required", True):
+            update_doc_params["security"] = "bearerAuth"
+
         update_decorators: List[Callable] = [
             bp.patch(f"/<{id_field}>"),
             bp.input(update_schema),
             bp.output(main_schema),
-            bp.doc(summary=f"Update an existing {entity_name}", tags=tags),
+            bp.doc(**update_doc_params),
         ] + get_route_decorators(
             "update",
             default_require_auth=True,
@@ -206,10 +222,14 @@ def register_crud_routes(
         update_item = _apply_decorators(update_item, update_decorators)
 
     if cfg.get("delete", {}).get("enabled", True):
+        delete_doc_params = {"summary": f"Delete an {entity_name}", "tags": tags}
+        if cfg.get("delete", {}).get("auth_required", True):
+            delete_doc_params["security"] = "bearerAuth"
+
         delete_decorators: List[Callable] = [
             bp.delete(f"/<{id_field}>"),
             bp.output(MessageSchema, status_code=200),
-            bp.doc(summary=f"Delete an {entity_name}", tags=tags),
+            bp.doc(**delete_doc_params),
         ] + get_route_decorators(
             "delete",
             default_require_auth=True,
