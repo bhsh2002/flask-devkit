@@ -1,14 +1,11 @@
 # flask_devkit/users/routes.py
 # flask_devkit/users/routes.py
 from apiflask import APIBlueprint
-from flask import current_app, jsonify, make_response
+from flask import current_app, jsonify
 from flask_jwt_extended import (
     get_jwt,
     get_jwt_identity,
     jwt_required,
-    set_access_cookies,
-    set_refresh_cookies,
-    unset_jwt_cookies,
 )
 
 from flask_devkit.auth.decorators import permission_required
@@ -79,18 +76,13 @@ def create_all_blueprints():
             username=json_data["username"], password=json_data["password"]
         )
         user_data = user_schemas["main"]().dump(user)
-        resp = make_response(
-            jsonify(
-                {
-                    "user": user_data,
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                }
-            )
+        return jsonify(
+            {
+                "user": user_data,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+            }
         )
-        set_access_cookies(resp, access_token)
-        set_refresh_cookies(resp, refresh_token)
-        return resp
 
     @auth_bp.get("/me")
     @jwt_required()
@@ -110,20 +102,14 @@ def create_all_blueprints():
         user_uuid = get_jwt_identity()
         devkit = _get_devkit_extension()
         new_access = devkit.user_service.generate_fresh_token_for_identity(user_uuid)
-        resp = make_response(
-            jsonify({"access_token": new_access, "refresh_token": None, "user": None})
-        )
-        set_access_cookies(resp, new_access)
-        return resp
+        return {"access_token": new_access}
 
     @auth_bp.post("/logout")
     @jwt_required(optional=True)
     @roles_bp.output(MessageSchema)
     @roles_bp.doc(summary="Logout and clear tokens")
     def logout():
-        resp = make_response(jsonify({"message": "Logged out"}))
-        unset_jwt_cookies(resp)
-        return resp
+        return {"message": "Logged out"}
 
     @roles_bp.delete("/users/<string:user_uuid>")
     @roles_bp.input(AssignRoleSchema)
@@ -215,18 +201,13 @@ def login(json_data):
         username=json_data["username"], password=json_data["password"]
     )
     user_data = user_schemas["main"]().dump(user)
-    resp = make_response(
-        jsonify(
-            {
-                "user": user_data,
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-            }
-        )
+    return jsonify(
+        {
+            "user": user_data,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }
     )
-    set_access_cookies(resp, access_token)
-    set_refresh_cookies(resp, refresh_token)
-    return resp
 
 
 @auth_bp.get("/me")
@@ -248,11 +229,7 @@ def refresh():
     user_uuid = get_jwt_identity()
     devkit = _get_devkit_extension()
     new_access = devkit.user_service.generate_fresh_token_for_identity(user_uuid)
-    resp = make_response(
-        jsonify({"access_token": new_access, "refresh_token": None, "user": None})
-    )
-    set_access_cookies(resp, new_access)
-    return resp
+    return {"access_token": new_access}
 
 
 @auth_bp.post("/logout")
@@ -260,9 +237,7 @@ def refresh():
 @roles_bp.output(MessageSchema)
 @roles_bp.doc(summary="Logout and clear tokens")
 def logout():
-    resp = make_response(jsonify({"message": "Logged out"}))
-    unset_jwt_cookies(resp)
-    return resp
+    return {"message": "Logged out"}
 
 
 @roles_bp.delete("/users/<string:user_uuid>")
