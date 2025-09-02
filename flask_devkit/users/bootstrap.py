@@ -2,7 +2,12 @@
 
 from sqlalchemy.orm import Session
 
-from flask_devkit.users.models import Permission, Role, User
+from flask_devkit.users.models import (
+    Permission,
+    Role,
+    User,
+    UserRoleAssociation,
+)
 
 DEFAULT_PERMISSIONS: list[str] = [
     # User management
@@ -84,8 +89,15 @@ def seed_default_auth(
         session.add(admin_user)
         created_user = True
 
-    if admin_role not in getattr(admin_user, "roles", []):
-        pass
+    # Check if the role is already assigned to the user
+    existing_association = (
+        session.query(UserRoleAssociation)
+        .filter_by(user_id=admin_user.id, role_id=admin_role.id)
+        .first()
+    )
+    if not existing_association:
+        association = UserRoleAssociation(user_id=admin_user.id, role_id=admin_role.id)
+        session.add(association)
 
     session.commit()
     return {

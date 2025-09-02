@@ -24,8 +24,12 @@ def test_seed_default_auth_idempotent(tmp_path):
 
         assert res1["admin_role_id"] == res2["admin_role_id"]
         assert db.session.query(Permission).count() >= 10
-        assert db.session.query(Role).filter_by(name="admin").first() is not None
-        assert db.session.query(User).filter_by(username="admin").first() is not None
+        admin_role = db.session.query(Role).filter_by(name="admin").first()
+        assert admin_role is not None
+        admin_user = db.session.query(User).filter_by(username="admin").first()
+        assert admin_user is not None
+        # Verify the admin user has the admin role
+        assert admin_role in admin_user.roles
 
 
 def test_cli_command(tmp_path):
