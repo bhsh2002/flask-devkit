@@ -29,6 +29,17 @@ class DevKit:
             app.extensions = {}
         app.extensions["devkit"] = self
 
+        # Define and set security schemes for OpenAPI spec
+        security_schemes = {
+            "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+        }
+        existing_schemes = app.config.get("SECURITY_SCHEMES")
+        if isinstance(existing_schemes, dict):
+            existing_schemes.update(security_schemes)
+            app.config["SECURITY_SCHEMES"] = existing_schemes
+        else:
+            app.config["SECURITY_SCHEMES"] = security_schemes
+
         # Initialize db and jwt
         db.init_app(app)
         app.config["JWT_TOKEN_LOCATION"] = ["headers"]

@@ -15,9 +15,6 @@ def app():
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
     app.config["JWT_SECRET_KEY"] = "test-secret"
     app.config["SERVER_NAME"] = "localhost"
-    app.config["SECURITY_SCHEMES"] = {
-        "bearerAuth": {"type": "http", "scheme": "bearer"}
-    }
 
     DevKit(app)
 
