@@ -10,11 +10,14 @@ from flask_devkit.users.models import Base, Permission, Role, User
 
 @pytest.fixture
 def app():
-    app = APIFlask(__name__)
+    app = APIFlask(__name__, spec_path="/openapi.json")
     app.config["TESTING"] = True
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
     app.config["JWT_SECRET_KEY"] = "test-secret"
     app.config["SERVER_NAME"] = "localhost"
+    app.config["SECURITY_SCHEMES"] = {
+        "bearerAuth": {"type": "http", "scheme": "bearer"}
+    }
 
     DevKit(app)
 

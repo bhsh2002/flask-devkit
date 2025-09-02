@@ -1,7 +1,7 @@
 # flask_devkit/users/routes.py
 # flask_devkit/users/routes.py
 from apiflask import APIBlueprint
-from flask import current_app, jsonify
+from flask import current_app
 from flask_jwt_extended import (
     get_jwt,
     get_jwt_identity,
@@ -75,14 +75,11 @@ def create_all_blueprints():
         user, access_token, refresh_token = devkit.user_service.login_user(
             username=json_data["username"], password=json_data["password"]
         )
-        user_data = user_schemas["main"]().dump(user)
-        return jsonify(
-            {
-                "user": user_data,
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-            }
-        )
+        return {
+            "user": user,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }
 
     @auth_bp.get("/me")
     @jwt_required()
@@ -200,14 +197,11 @@ def login(json_data):
     user, access_token, refresh_token = devkit.user_service.login_user(
         username=json_data["username"], password=json_data["password"]
     )
-    user_data = user_schemas["main"]().dump(user)
-    return jsonify(
-        {
-            "user": user_data,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-        }
-    )
+    return {
+        "user": user,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+    }
 
 
 @auth_bp.get("/me")

@@ -31,6 +31,7 @@ class DevKit:
 
         # Initialize db and jwt
         db.init_app(app)
+        app.config["JWT_TOKEN_LOCATION"] = ["headers"]
         JWTManager(app)
 
         # Initialize services
