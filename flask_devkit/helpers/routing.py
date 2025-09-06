@@ -6,7 +6,6 @@ Provides a powerful factory function to auto-generate CRUD REST endpoints.
 from typing import Any, Callable, Dict, List, Type
 
 from apiflask import APIBlueprint
-from flask import current_app
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 
@@ -55,11 +54,6 @@ def register_error_handlers(bp: APIBlueprint):
     @bp.errorhandler(ValidationError)
     def handle_validation_error(error):
         return {"message": "Validation failed", "errors": error.messages}, 422
-
-    @bp.errorhandler(Exception)
-    def handle_generic_exception(error):
-        current_app.logger.error(f"Unhandled exception: {error}", exc_info=True)
-        return {"message": "An unexpected internal error occurred."}, 500
 
 
 def register_crud_routes(
@@ -205,7 +199,10 @@ def register_crud_routes(
         create_item = _apply_decorators(create_item, create_decorators)
 
     if cfg.get("update", {}).get("enabled", True):
-        update_doc_params = {"summary": f"Update an existing {entity_name}", "tags": tags}
+        update_doc_params = {
+            "summary": f"Update an existing {entity_name}",
+            "tags": tags,
+        }
         if cfg.get("update", {}).get("auth_required", True):
             update_doc_params["security"] = "bearerAuth"
 
