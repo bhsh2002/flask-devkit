@@ -10,7 +10,7 @@ from sqlalchemy import (
     Table,
     text,
 )
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from flask_devkit.core.mixins import (
@@ -19,8 +19,11 @@ from flask_devkit.core.mixins import (
     TimestampMixin,
     UUIDMixin,
 )
+from flask_devkit.database import db
 
-Base = declarative_base()
+# Use the db.Model as the declarative base to ensure models are registered
+# with the same metadata as the main application.
+Base = db.Model
 
 
 class User(Base, IDMixin, UUIDMixin, TimestampMixin, SoftDeleteMixin):
