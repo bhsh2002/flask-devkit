@@ -75,28 +75,28 @@ class DevKit:
             user_schemas,
         )
 
-        auth_bp, users_bp, roles_bp, permissions_bp = create_all_blueprints()
+        auth_bp, users_bp, roles_bp, permissions_bp = create_all_blueprints(bp)
 
         # Register CRUD routes for models
         register_crud_routes(
             bp=users_bp,
             service=self.user_service,
             schemas=user_schemas,
-            entity_name="user",
+            entity_name=f"{bp.name}.User",
             id_field="uuid",
         )
         register_crud_routes(
             bp=roles_bp,
             service=self.role_service,
             schemas=role_schemas,
-            entity_name="role",
+            entity_name=f"{bp.name}.Role",
             id_field="id",
         )
         register_crud_routes(
             bp=permissions_bp,
             service=self.permission_service,
             schemas=permission_schemas,
-            entity_name="permission",
+            entity_name=f"{bp.name}.Permission",
             id_field="id",
         )
 
