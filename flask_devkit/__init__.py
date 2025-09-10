@@ -1,7 +1,7 @@
 # flask_devkit/__init__.py
 from typing import Callable, Optional
 
-from apiflask import APIFlask
+from apiflask import APIBlueprint, APIFlask
 from flask_jwt_extended import JWTManager
 
 from flask_devkit.database import db
@@ -13,6 +13,7 @@ class DevKit:
     def __init__(
         self,
         app: Optional[APIFlask] = None,
+        bp: Optional[APIBlueprint] = None,
         additional_claims_loader: Optional[Callable] = None,
     ):
         self.additional_claims_loader = additional_claims_loader
@@ -22,6 +23,9 @@ class DevKit:
 
         if app is not None:
             self.init_app(app)
+
+        if bp is None:
+            bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
 
     def init_app(self, app: APIFlask):
         """Initialize the extension with the Flask app."""
@@ -102,7 +106,7 @@ class DevKit:
             register_error_handlers(bp)
 
         # Register blueprints on the app
-        app.register_blueprint(auth_bp)
-        app.register_blueprint(users_bp)
-        app.register_blueprint(roles_bp)
-        app.register_blueprint(permissions_bp)
+        bp.register_blueprint(auth_bp)
+        bp.register_blueprint(users_bp)
+        bp.register_blueprint(roles_bp)
+        bp.register_blueprint(permissions_bp)
