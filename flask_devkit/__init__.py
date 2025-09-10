@@ -22,12 +22,11 @@ class DevKit:
         self.permission_service: Optional[PermissionService] = None
 
         if app is not None:
-            self.init_app(app)
+            if bp is None:
+                bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
+            self.init_app(app, bp)
 
-        if bp is None:
-            bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
-
-    def init_app(self, app: APIFlask):
+    def init_app(self, app: APIFlask, bp: APIBlueprint):
         """Initialize the extension with the Flask app."""
         if not hasattr(app, "extensions"):
             app.extensions = {}
@@ -61,9 +60,9 @@ class DevKit:
         )
 
         # Create and register blueprints
-        self._register_blueprints(app)
+        self._register_blueprints(bp)
 
-    def _register_blueprints(self, app: APIFlask):
+    def _register_blueprints(self, bp: APIBlueprint):
         """Register all blueprints for the auth system."""
         from flask_devkit.helpers.routing import (
             register_crud_routes,
