@@ -1,6 +1,6 @@
 # tests/users/test_permissions.py
 import pytest
-from apiflask import APIFlask
+from apiflask import APIBlueprint, APIFlask
 from flask_jwt_extended import create_access_token
 
 from flask_devkit import DevKit
@@ -14,7 +14,11 @@ def app():
     app.config["TESTING"] = True
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
     app.config["JWT_SECRET_KEY"] = "test-secret"
-    DevKit(app)
+
+    bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
+    DevKit(app, bp)
+    app.register_blueprint(bp)
+
     with app.app_context():
         Base.metadata.create_all(db.engine)
         yield app
@@ -47,6 +51,6 @@ def test_assign_role_forbidden_without_permission(app, client):
         app, identity=user_uuid, perms=["read:user"]
     )  # missing assign_role:user
     resp = client.post(
-        f"/roles/users/{user_uuid}", json={"role_id": role_id}, headers=headers
+        f"/api/v1/roles/users/{user_uuid}", json={"role_id": role_id}, headers=headers
     )
     assert resp.status_code == 403

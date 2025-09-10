@@ -29,7 +29,7 @@ def app(db_session):
     app.config["JWT_SECRET_KEY"] = "routing-secret"
 
     # We need a custom DevKit setup for this test to register a new model
-    dev_kit = DevKit()
+    DevKit(app)
 
     # Manually initialize services for the test model
     widget_service = BaseService(model=Widget, db_session=db_session)
@@ -53,8 +53,7 @@ def app(db_session):
         },
     )
 
-    # Initialize the extension and register the custom blueprint
-    dev_kit.init_app(app)
+    # register the custom blueprint
     app.register_blueprint(widget_bp)
 
     with app.app_context():

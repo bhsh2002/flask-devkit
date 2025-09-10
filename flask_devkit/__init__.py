@@ -101,8 +101,8 @@ class DevKit:
         )
 
         # Register error handlers for all blueprints
-        for bp in [auth_bp, users_bp, roles_bp, permissions_bp]:
-            register_error_handlers(bp)
+        for sub_bp in [auth_bp, users_bp, roles_bp, permissions_bp]:
+            register_error_handlers(sub_bp)
 
         # Register blueprints on the app
         bp.register_blueprint(auth_bp)

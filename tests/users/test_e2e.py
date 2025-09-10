@@ -1,6 +1,6 @@
 # tests/users/test_e2e.py
 import pytest
-from apiflask import APIFlask
+from apiflask import APIBlueprint, APIFlask
 from flask_jwt_extended import create_access_token
 
 from flask_devkit import DevKit
@@ -16,7 +16,9 @@ def app():
     app.config["JWT_SECRET_KEY"] = "test-secret"
     app.config["SERVER_NAME"] = "localhost"
 
-    DevKit(app)
+    bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
+    DevKit(app, bp)
+    app.register_blueprint(bp)
 
     with app.app_context():
         Base.metadata.create_all(db.engine)
@@ -37,7 +39,8 @@ def test_login_flow(client):
         db.session.commit()
 
     resp = client.post(
-        "/auth/login", json={"username": "alice", "password": "a_good_password123"}
+        "/api/v1/auth/login",
+        json={"username": "alice", "password": "a_good_password123"},
     )
     assert resp.status_code == 200
     data = resp.get_json()
@@ -53,20 +56,20 @@ def test_change_password_and_relogin(client):
         db.session.commit()
 
     login_resp = client.post(
-        "/auth/login", json={"username": "dave", "password": "old_password123"}
+        "/api/v1/auth/login", json={"username": "dave", "password": "old_password123"}
     )
     token = login_resp.get_json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     change_resp = client.post(
-        "/users/change-password",
+        "/api/v1/users/change-password",
         json={"current_password": "old_password123", "new_password": "new_password456"},
         headers=headers,
     )
     assert change_resp.status_code == 200
 
     relogin_resp = client.post(
-        "/auth/login", json={"username": "dave", "password": "new_password456"}
+        "/api/v1/auth/login", json={"username": "dave", "password": "new_password456"}
     )
     assert relogin_resp.status_code == 200
 
@@ -94,20 +97,20 @@ def test_full_rbac_flow(client):
 
     # Assign role to user
     ar = client.post(
-        f"/roles/users/{user_uuid}", json={"role_id": role_id}, headers=headers
+        f"/api/v1/roles/users/{user_uuid}", json={"role_id": role_id}, headers=headers
     )
     assert ar.status_code == 200
 
     # Assign permission to role
     pr = client.post(
-        f"/roles/{role_id}/permissions",
+        f"/api/v1/roles/{role_id}/permissions",
         json={"permission_id": perm_id},
         headers=headers,
     )
     assert pr.status_code == 200
 
     # List role permissions
-    lp = client.get(f"/roles/{role_id}/permissions", headers=headers)
+    lp = client.get(f"/api/v1/roles/{role_id}/permissions", headers=headers)
     assert lp.status_code == 200
     assert any(p.get("name") == "create:thing" for p in lp.get_json())
 
@@ -134,24 +137,26 @@ def test_revoke_permissions_and_roles(client):
 
     # Revoke permission from role
     revoke_perm_resp = client.delete(
-        f"/roles/{role_id}/permissions",
+        f"/api/v1/roles/{role_id}/permissions",
         json={"permission_id": perm_id},
         headers=headers,
     )
     assert revoke_perm_resp.status_code == 200
 
     # Verify permission is gone
-    permissions_resp = client.get(f"/roles/{role_id}/permissions", headers=headers)
+    permissions_resp = client.get(
+        f"/api/v1/roles/{role_id}/permissions", headers=headers
+    )
     assert len(permissions_resp.get_json()) == 0
 
     # Revoke role from user
     revoke_role_resp = client.delete(
-        f"/roles/users/{user_uuid}", json={"role_id": role_id}, headers=headers
+        f"/api/v1/roles/users/{user_uuid}", json={"role_id": role_id}, headers=headers
     )
     assert revoke_role_resp.status_code == 200
 
     # Verify role is gone
-    roles_resp = client.get(f"/roles/users/{user_uuid}", headers=headers)
+    roles_resp = client.get(f"/api/v1/roles/users/{user_uuid}", headers=headers)
     assert len(roles_resp.get_json()) == 0
 
 
@@ -169,13 +174,13 @@ def test_system_role_protection(client):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Attempt to delete the system role
-    delete_resp = client.delete(f"/roles/{role_id}", headers=headers)
+    delete_resp = client.delete(f"/api/v1/roles/{role_id}", headers=headers)
     assert delete_resp.status_code == 400  # BusinessLogicError
     assert delete_resp.get_json()["error_code"] == "BUSINESS_LOGIC_ERROR"
 
     # Attempt to rename the system role
     patch_resp = client.patch(
-        f"/roles/{role_id}",
+        f"/api/v1/roles/{role_id}",
         json={"name": "new_name", "display_name": "New Name"},
         headers=headers,
     )
