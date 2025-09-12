@@ -36,9 +36,7 @@ def create_all_blueprints(bp: APIBlueprint):
     @roles_bp.post("/users/<string:user_uuid>")
     @roles_bp.input(AssignRoleSchema)
     @roles_bp.output(MessageSchema)
-    @roles_bp.doc(
-        summary="Assign Role To User", security="bearerAuth", tags=[f"{bp.name}.Role"]
-    )
+    @roles_bp.doc(summary="Assign Role To User", security="bearerAuth")
     @jwt_required()
     @permission_required("assign_role:user")
     @unit_of_work
@@ -54,11 +52,7 @@ def create_all_blueprints(bp: APIBlueprint):
 
     @roles_bp.get("/users/<string:user_uuid>")
     @roles_bp.output(role_schemas["main"](many=True))
-    @roles_bp.doc(
-        summary="List Roles Assigned To User",
-        security="bearerAuth",
-        tags=[f"{bp.name}.Role"],
-    )
+    @roles_bp.doc(summary="List Roles Assigned To User", security="bearerAuth")
     @jwt_required()
     @permission_required("read_roles:user")
     def list_user_roles(user_uuid):
@@ -68,7 +62,7 @@ def create_all_blueprints(bp: APIBlueprint):
     @auth_bp.post("/login")
     @auth_bp.input(LoginSchema)
     @auth_bp.output(AuthTokenSchema)
-    @auth_bp.doc(summary="User Login", tags=[f"{bp.name}.Auth"])
+    @auth_bp.doc(summary="User Login")
     @unit_of_work
     def login(json_data):
         devkit = _get_devkit_extension()
@@ -83,11 +77,7 @@ def create_all_blueprints(bp: APIBlueprint):
 
     @auth_bp.get("/me")
     @auth_bp.output(user_schemas["main"])
-    @auth_bp.doc(
-        summary="Current Authenticated User",
-        security="bearerAuth",
-        tags=[f"{bp.name}.Auth"],
-    )
+    @auth_bp.doc(summary="Current Authenticated User", security="bearerAuth")
     @jwt_required()
     def whoami():
         user_uuid = get_jwt_identity()
@@ -97,9 +87,7 @@ def create_all_blueprints(bp: APIBlueprint):
 
     @auth_bp.post("/refresh")
     @auth_bp.output(AuthTokenSchema)
-    @auth_bp.doc(
-        summary="Refresh Access Token", security="bearerAuth", tags=[f"{bp.name}.Auth"]
-    )
+    @auth_bp.doc(summary="Refresh Access Token", security="bearerAuth")
     @jwt_required(refresh=True)
     def refresh():
         user_uuid = get_jwt_identity()
@@ -109,11 +97,7 @@ def create_all_blueprints(bp: APIBlueprint):
 
     @auth_bp.post("/logout")
     @roles_bp.output(MessageSchema)
-    @roles_bp.doc(
-        summary="Logout and clear tokens",
-        security="bearerAuth",
-        tags=[f"{bp.name}.Auth"],
-    )
+    @roles_bp.doc(summary="Logout and clear tokens", security="bearerAuth")
     @jwt_required(optional=True)
     def logout():
         return {"message": "Logged out"}
@@ -121,9 +105,7 @@ def create_all_blueprints(bp: APIBlueprint):
     @roles_bp.delete("/users/<string:user_uuid>")
     @roles_bp.input(AssignRoleSchema)
     @roles_bp.output(MessageSchema)
-    @roles_bp.doc(
-        summary="Revoke Role From User", security="bearerAuth", tags=[f"{bp.name}.Role"]
-    )
+    @roles_bp.doc(summary="Revoke Role From User", security="bearerAuth")
     @jwt_required()
     @permission_required("revoke_role:user")
     @unit_of_work
@@ -135,11 +117,7 @@ def create_all_blueprints(bp: APIBlueprint):
 
     @roles_bp.get("/<int:role_id>/permissions")
     @roles_bp.output(permission_schemas["main"](many=True))
-    @roles_bp.doc(
-        summary="List Permissions For Role",
-        security="bearerAuth",
-        tags=[f"{bp.name}.Role"],
-    )
+    @roles_bp.doc(summary="List Permissions For Role", security="bearerAuth")
     @jwt_required()
     @permission_required("read_permissions:role")
     def list_role_permissions(role_id: int):
@@ -149,11 +127,7 @@ def create_all_blueprints(bp: APIBlueprint):
     @roles_bp.post("/<int:role_id>/permissions")
     @roles_bp.input(PermissionIdSchema)
     @roles_bp.output(MessageSchema)
-    @roles_bp.doc(
-        summary="Assign Permission To Role",
-        security="bearerAuth",
-        tags=[f"{bp.name}.Role"],
-    )
+    @roles_bp.doc(summary="Assign Permission To Role", security="bearerAuth")
     @jwt_required()
     @permission_required("assign_permission:role")
     @unit_of_work
@@ -167,11 +141,7 @@ def create_all_blueprints(bp: APIBlueprint):
     @roles_bp.delete("/<int:role_id>/permissions")
     @roles_bp.input(PermissionIdSchema)
     @roles_bp.output(MessageSchema)
-    @roles_bp.doc(
-        summary="Revoke Permission From Role",
-        security="bearerAuth",
-        tags=[f"{bp.name}.Role"],
-    )
+    @roles_bp.doc(summary="Revoke Permission From Role", security="bearerAuth")
     @jwt_required()
     @permission_required("revoke_permission:role")
     @unit_of_work
@@ -185,11 +155,7 @@ def create_all_blueprints(bp: APIBlueprint):
     @users_bp.post("/change-password")
     @users_bp.input(ChangePasswordSchema)
     @users_bp.output(MessageSchema)
-    @users_bp.doc(
-        summary="Change current user's password",
-        security="bearerAuth",
-        tags=[f"{bp.name}.User"],
-    )
+    @users_bp.doc(summary="Change current user's password", security="bearerAuth")
     @jwt_required()
     @unit_of_work
     def change_password(json_data):

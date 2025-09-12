@@ -75,7 +75,6 @@ def register_crud_routes(
     update_schema = schemas["update"]
     query_schema = schemas["query"]
     pagination_out_schema = schemas["pagination_out"]
-    tags = [f"{bp.name}.{entity_name.capitalize()}"]
 
     if id_field not in {"id", "uuid"}:
         raise ValueError("id_field must be either 'id' or 'uuid'")
@@ -153,7 +152,7 @@ def register_crud_routes(
         return {"message": f"{entity_name.capitalize()} deleted successfully."}
 
     if cfg.get("list", {}).get("enabled", True):
-        list_doc_params = {"summary": f"List all {entity_name}s", "tags": tags}
+        list_doc_params = {"summary": f"List all {entity_name}s"}
         if cfg.get("list", {}).get("auth_required", True):
             list_doc_params["security"] = "bearerAuth"
 
@@ -168,7 +167,7 @@ def register_crud_routes(
         list_items = _apply_decorators(list_items, list_decorators)
 
     if cfg.get("get", {}).get("enabled", True):
-        get_doc_params = {"summary": f"Get a single {entity_name}", "tags": tags}
+        get_doc_params = {"summary": f"Get a single {entity_name}"}
         if cfg.get("get", {}).get("auth_required", True):
             get_doc_params["security"] = "bearerAuth"
 
@@ -182,7 +181,7 @@ def register_crud_routes(
         get_item = _apply_decorators(get_item, get_decorators)
 
     if cfg.get("create", {}).get("enabled", True):
-        create_doc_params = {"summary": f"Create a new {entity_name}", "tags": tags}
+        create_doc_params = {"summary": f"Create a new {entity_name}"}
         if cfg.get("create", {}).get("auth_required", True):
             create_doc_params["security"] = "bearerAuth"
 
@@ -199,10 +198,7 @@ def register_crud_routes(
         create_item = _apply_decorators(create_item, create_decorators)
 
     if cfg.get("update", {}).get("enabled", True):
-        update_doc_params = {
-            "summary": f"Update an existing {entity_name}",
-            "tags": tags,
-        }
+        update_doc_params = {"summary": f"Update an existing {entity_name}"}
         if cfg.get("update", {}).get("auth_required", True):
             update_doc_params["security"] = "bearerAuth"
 
@@ -219,7 +215,7 @@ def register_crud_routes(
         update_item = _apply_decorators(update_item, update_decorators)
 
     if cfg.get("delete", {}).get("enabled", True):
-        delete_doc_params = {"summary": f"Delete an {entity_name}", "tags": tags}
+        delete_doc_params = {"summary": f"Delete an {entity_name}"}
         if cfg.get("delete", {}).get("auth_required", True):
             delete_doc_params["security"] = "bearerAuth"
 
