@@ -75,7 +75,7 @@ def register_crud_routes(
     update_schema = schemas["update"]
     query_schema = schemas["query"]
     pagination_out_schema = schemas["pagination_out"]
-    tags = [entity_name.capitalize()]
+    tags = [f"{bp.name}.{entity_name.capitalize()}"]
 
     if id_field not in {"id", "uuid"}:
         raise ValueError("id_field must be either 'id' or 'uuid'")

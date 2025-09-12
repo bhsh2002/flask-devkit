@@ -82,21 +82,21 @@ class DevKit:
             bp=users_bp,
             service=self.user_service,
             schemas=user_schemas,
-            entity_name=f"{bp.name}.User",
+            entity_name="user",
             id_field="uuid",
         )
         register_crud_routes(
             bp=roles_bp,
             service=self.role_service,
             schemas=role_schemas,
-            entity_name=f"{bp.name}.Role",
+            entity_name="role",
             id_field="id",
         )
         register_crud_routes(
             bp=permissions_bp,
             service=self.permission_service,
             schemas=permission_schemas,
-            entity_name=f"{bp.name}.Permission",
+            entity_name="permission",
             id_field="id",
         )
 
