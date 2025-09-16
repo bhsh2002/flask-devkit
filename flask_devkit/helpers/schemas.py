@@ -9,7 +9,7 @@ offering tools to auto-generate CRUD schemas from SQLAlchemy models.
 from apiflask import Schema
 from apiflask.fields import Boolean, DateTime, Integer, List, Nested, String
 from apiflask.validators import Range
-from marshmallow import ValidationError, pre_dump, validates_schema
+from marshmallow import ValidationError, pre_dump, validates_schema, INCLUDE
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 from flask_devkit.core.repository import PaginationResult
