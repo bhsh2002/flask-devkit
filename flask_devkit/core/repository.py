@@ -113,7 +113,7 @@ class BaseRepository(Generic[T]):
 
         for field_name, conditions_string in filters.items():
             if not hasattr(self.model, field_name):
-                current_app.warning(
+                current_app.logger.warning(
                     f"Filter field '{field_name}' does not exist on model '{self.model.__name__}'"
                 )
                 continue
@@ -151,7 +151,7 @@ class BaseRepository(Generic[T]):
                     clause = getattr(column, op_map[op])(value)
                     clauses.append(clause)
                 else:
-                    current_app.warning(f"Unknown filter operator: {op}")
+                    current_app.logger.warning(f"Unknown filter operator: {op}")
 
             if clauses:
                 query = query.filter(or_(*clauses))
