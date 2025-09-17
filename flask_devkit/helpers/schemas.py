@@ -60,9 +60,6 @@ class BaseListQuerySchema(PaginationQuerySchema):
         metadata={"description": "Include soft-deleted items in the results."},
     )
 
-    class Meta:
-        unknown = INCLUDE
-
 
 class BaseFilterQuerySchema(BaseListQuerySchema):
     """Base schema for filter queries, with common timestamp filters."""
@@ -125,6 +122,7 @@ def create_crud_schemas(model_class: type, **kwargs) -> dict:
     Dynamically generates a full set of CRUD schemas for a SQLAlchemy model.
     """
     model_name = model_class.__name__
+    query_schema_fields = kwargs.get("query_schema_fields", [])
     exclude_from_main = kwargs.get("exclude_from_main", [])
     exclude_from_input = kwargs.get("exclude_from_input", [])
     exclude_from_update = kwargs.get("exclude_from_update", [])
@@ -153,7 +151,15 @@ def create_crud_schemas(model_class: type, **kwargs) -> dict:
             exclude = tuple(set(exclude_from_main + exclude_from_update))
             partial = True
 
-    QuerySchema = type(f"{model_name}QuerySchema", (BaseFilterQuerySchema,), {})
+    query_attrs = {}
+
+    if isinstance(query_schema_fields, dict):
+        query_attrs.update(query_schema_fields)
+    elif isinstance(query_schema_fields, (list, tuple)):
+        for field_name in query_schema_fields:
+            query_attrs[field_name] = String(required=False)
+
+    QuerySchema = type(f"{model_name}QuerySchema", (BaseFilterQuerySchema,), query_attrs)
 
     PaginationOutSchema = create_pagination_schema(MainSchema)
 
