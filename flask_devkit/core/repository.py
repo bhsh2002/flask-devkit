@@ -11,7 +11,7 @@ from functools import wraps
 from typing import Any, Dict, Generic, List, NamedTuple, Optional, Type, TypeVar
 
 from flask import current_app
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeMeta, Session
 
@@ -92,58 +92,74 @@ class BaseRepository(Generic[T]):
             return query.filter(self.model.deleted_at.is_(None))
         return query
 
-    def _apply_filters(self, query, filters: Optional[Dict[str, Any]]):
-        """
-        Applies a dictionary of filters to the query using advanced operators.
 
-        Operators can be specified using `__` notation, e.g., `price__gte=100`.
-        Supported operators: eq, ne, lt, lte, gt, gte, like, ilike, in.
-        If no operator is specified, 'eq' (equals) is assumed.
-        """
-        if not filters:
-            return query
+def _apply_filters(self, query, filters: Optional[Dict[str, Any]]):
+    """
+    Applies structured filters to the query.
 
-        for key, value in filters.items():
-            parts = key.split("__")
-            field_name = parts[0]
-            op = parts[1] if len(parts) > 1 else "eq"
+    filters format example:
+    {
+        "name": {
+            "ilike": ["cola", "pepsi"],   # multiple values allowed
+            "ne": "fanta"                 # exclude specific value
+        },
+        "price": {
+            "gte": 10,
+            "lte": 50
+        }
+    }
 
-            if not hasattr(self.model, field_name):
+    Supported operators:
+    - eq, ne, lt, lte, gt, gte
+    - like, ilike
+    - in
+    """
+    if not filters:
+        return query
+
+    # map simple ops to SQLAlchemy operator names
+    op_map = {
+        "eq": "__eq__",
+        "ne": "__ne__",
+        "lt": "__lt__",
+        "lte": "__le__",
+        "gt": "__gt__",
+        "gte": "__ge__",
+    }
+
+    for field_name, conditions in filters.items():
+        if not hasattr(self.model, field_name):
+            current_app.logger.warning(f"Unknown filter field: {field_name}")
+            continue
+
+        column = getattr(self.model, field_name)
+
+        # allow shorthand: {"field": "value"} → {"eq": value}
+        if not isinstance(conditions, dict):
+            conditions = {"eq": conditions}
+
+        for op, value in conditions.items():
+            if value is None:
                 continue
 
-            column = getattr(self.model, field_name)
+            # normalize single values to list for uniform handling
+            values = value if isinstance(value, (list, tuple, set)) else [value]
 
-            if op == "in":
-                # For 'in' operator, accept both lists and comma-separated strings.
-                if isinstance(value, str):
-                    parsed = [v for v in (x.strip() for x in value.split(",")) if v]
-                else:
-                    parsed = (
-                        list(value)
-                        if isinstance(value, (list, tuple, set))
-                        else [value]
-                    )
-                query = query.filter(column.in_(parsed))
-            elif op == "like":
-                query = query.filter(column.like(f"%{value}%"))
-            elif op == "ilike":
-                query = query.filter(column.ilike(f"%{value}%"))
+            if op in ("like", "ilike"):
+                clauses = []
+                for v in values:
+                    expr = column.like(f"%{v}%") if op == "like" else column.ilike(f"%{v}%")
+                    clauses.append(expr)
+                query = query.filter(or_(*clauses))  # match ANY
+            elif op == "in":
+                query = query.filter(column.in_(values))
+            elif op in op_map:
+                clauses = [getattr(column, op_map[op])(v) for v in values]
+                query = query.filter(or_(*clauses))
             else:
-                # Standard comparison operators
-                try:
-                    attr = {
-                        "eq": "__eq__",
-                        "ne": "__ne__",
-                        "lt": "__lt__",
-                        "lte": "__le__",
-                        "gt": "__gt__",
-                        "gte": "__ge__",
-                    }[op]
-                    query = query.filter(getattr(column, attr)(value))
-                except KeyError:
-                    # If operator is unknown, skip this filter
-                    current_app.logger.warning(f"Unknown filter operator: {op}")
-        return query
+                current_app.logger.warning(f"Unknown filter operator: {op}")
+
+    return query
 
     def _apply_ordering(self, query, order_by: Optional[List[str]] = None):
         """Applies sorting to the query based on a list of fields."""
