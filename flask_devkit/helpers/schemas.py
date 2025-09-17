@@ -44,9 +44,6 @@ class PaginationQuerySchema(Schema):
         metadata={"description": "Items per page."},
     )
 
-    class Meta:
-        unknown = INCLUDE
-
 
 class BaseListQuerySchema(PaginationQuerySchema):
     """Base schema for list queries, adding sorting and soft-delete control."""
@@ -62,6 +59,9 @@ class BaseListQuerySchema(PaginationQuerySchema):
         load_default=False,
         metadata={"description": "Include soft-deleted items in the results."},
     )
+
+    class Meta:
+        unknown = INCLUDE
 
 
 class BaseFilterQuerySchema(BaseListQuerySchema):
