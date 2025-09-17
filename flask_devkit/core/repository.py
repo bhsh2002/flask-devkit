@@ -13,7 +13,7 @@ from typing import Any, Dict, Generic, List, NamedTuple, Optional, Type, TypeVar
 from flask import current_app
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import DeclarativeMeta, Session
+from sqlalchemy.orm import DeclarativeMeta, Session, Query
 
 from flask_devkit.core.exceptions import DatabaseError, DuplicateEntryError
 
@@ -92,31 +92,17 @@ class BaseRepository(Generic[T]):
             return query.filter(self.model.deleted_at.is_(None))
         return query
 
-    def _apply_filters(self, query, filters: Optional[Dict[str, Any]]):
+    def _apply_filters(self, query: Query, filters: Optional[Dict[str, str]]) -> Query:
         """
-        Applies structured filters to the query.
-
-        filters format example:
-        {
-            "name": {
-                "ilike": ["cola", "pepsi"],   # multiple values allowed
-                "ne": "fanta"                 # exclude specific value
-            },
-            "price": {
-                "gte": 10,
-                "lte": 50
-            }
-        }
-
-        Supported operators:
-        - eq, ne, lt, lte, gt, gte
-        - like, ilike
-        - in
+        Applies filters based on the new dictionary format.
+        - Validates fields against `self.query_schema_fields`.
+        - Parses 'op__value,op2__value2' strings.
+        - Conditions for the same field are combined with OR.
+        - Conditions for different fields are combined with AND.
         """
         if not filters:
             return query
 
-        # map simple ops to SQLAlchemy operator names
         op_map = {
             "eq": "__eq__",
             "ne": "__ne__",
@@ -126,41 +112,56 @@ class BaseRepository(Generic[T]):
             "gte": "__ge__",
         }
 
-        for field_name, conditions in filters.items():
+        for field_name, conditions_string in filters.items():
+            if field_name not in self.query_schema_fields:
+                current_app.warning(
+                    f"Attempted to filter on non-allowed field: {field_name}"
+                )
+                continue
+
             if not hasattr(self.model, field_name):
-                current_app.logger.warning(f"Unknown filter field: {field_name}")
+                current_app.warning(
+                    f"Filter field '{field_name}' does not exist on model '{self.model.__name__}'"
+                )
                 continue
 
             column = getattr(self.model, field_name)
+            clauses = []
 
-            # allow shorthand: {"field": "value"} → {"eq": value}
-            if not isinstance(conditions, dict):
-                conditions = {"eq": conditions}
-
-            for op, value in conditions.items():
-                if value is None:
+            conditions = conditions_string.split(",")
+            for condition in conditions:
+                condition = condition.strip()
+                if not condition:
                     continue
 
-                # normalize single values to list for uniform handling
-                values = value if isinstance(value, (list, tuple, set)) else [value]
+                parts = condition.split("__", 1)
+
+                if len(parts) == 1:
+                    op, value = "eq", parts[0]
+                else:
+                    op, value = parts
+
+                op = op.strip()
+                value = value.strip()
 
                 if op in ("like", "ilike"):
-                    clauses = []
-                    for v in values:
-                        expr = (
-                            column.like(f"%{v}%")
-                            if op == "like"
-                            else column.ilike(f"%{v}%")
-                        )
-                        clauses.append(expr)
-                    query = query.filter(or_(*clauses))  # match ANY
+                    clause = (
+                        column.ilike(f"%{value}%")
+                        if op == "ilike"
+                        else column.like(f"%{value}%")
+                    )
+                    clauses.append(clause)
                 elif op == "in":
-                    query = query.filter(column.in_(values))
+                    in_values = [v.strip() for v in value.split("|")]
+                    clauses.append(column.in_(in_values))
                 elif op in op_map:
-                    clauses = [getattr(column, op_map[op])(v) for v in values]
-                    query = query.filter(or_(*clauses))
+                    clause = getattr(column, op_map[op])(value)
+                    clauses.append(clause)
                 else:
-                    current_app.logger.warning(f"Unknown filter operator: {op}")
+                    current_app.warning(f"Unknown filter operator: {op}")
+
+            if clauses:
+                query = query.filter(or_(*clauses))
 
         return query
 
