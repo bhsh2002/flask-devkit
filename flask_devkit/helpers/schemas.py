@@ -154,10 +154,7 @@ def create_crud_schemas(model_class: type, **kwargs) -> dict:
     query_attrs = {}
     if isinstance(query_schema_fields, (list, tuple)):
         for field_name in query_schema_fields:
-            query_attrs[field_name] = String(
-                required=False,
-                description=f"Filter for {field_name}. Format: 'op__value,op2__value2'",
-            )
+            query_attrs[field_name] = String(required=False)
 
     QuerySchema = type(
         f"{model_name}QuerySchema", (BaseFilterQuerySchema,), query_attrs
