@@ -95,7 +95,6 @@ class BaseRepository(Generic[T]):
     def _apply_filters(self, query: Query, filters: Optional[Dict[str, str]]) -> Query:
         """
         Applies filters based on the new dictionary format.
-        - Validates fields against `self.query_schema_fields`.
         - Parses 'op__value,op2__value2' strings.
         - Conditions for the same field are combined with OR.
         - Conditions for different fields are combined with AND.
@@ -113,12 +112,6 @@ class BaseRepository(Generic[T]):
         }
 
         for field_name, conditions_string in filters.items():
-            if field_name not in self.query_schema_fields:
-                current_app.warning(
-                    f"Attempted to filter on non-allowed field: {field_name}"
-                )
-                continue
-
             if not hasattr(self.model, field_name):
                 current_app.warning(
                     f"Filter field '{field_name}' does not exist on model '{self.model.__name__}'"
