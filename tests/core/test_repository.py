@@ -57,7 +57,7 @@ def test_pagination_and_filtering(db_session, product_repo):
     db_session.commit()
 
     # Act: filter by name containing "book"
-    result = product_repo.paginate(filters={"name__ilike": "book"})
+    result = product_repo.paginate(filters={"name": {"ilike": "book"}})
 
     # Assert
     assert result.total == 2

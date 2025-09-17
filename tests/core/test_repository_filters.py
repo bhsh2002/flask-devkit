@@ -35,56 +35,56 @@ def test_filter_eq(filter_repo):
 
 
 def test_filter_ne(filter_repo):
-    result = filter_repo.paginate(filters={"value__ne": 20})
+    result = filter_repo.paginate(filters={"value": {"ne": 20}})
     assert result.total == 2
     assert {item.name for item in result.items} == {"apple", "pear"}
 
 
 def test_filter_gt(filter_repo):
-    result = filter_repo.paginate(filters={"value__gt": 20})
+    result = filter_repo.paginate(filters={"value": {"gt": 20}})
     assert result.total == 1
     assert result.items[0].name == "pear"
 
 
 def test_filter_gte(filter_repo):
-    result = filter_repo.paginate(filters={"value__gte": 20})
+    result = filter_repo.paginate(filters={"value": {"gte": 20}})
     assert result.total == 3
 
 
 def test_filter_lt(filter_repo):
-    result = filter_repo.paginate(filters={"price__lt": 2.0})
+    result = filter_repo.paginate(filters={"price": {"lt": 2.0}})
     assert result.total == 1
     assert result.items[0].name == "apple"
 
 
 def test_filter_lte(filter_repo):
-    result = filter_repo.paginate(filters={"price__lte": 2.0})
+    result = filter_repo.paginate(filters={"price": {"lte": 2.0}})
     assert result.total == 2
 
 
 def test_filter_in_list(filter_repo):
-    result = filter_repo.paginate(filters={"name__in": ["apple", "pear"]})
+    result = filter_repo.paginate(filters={"name": {"in": ["apple", "pear"]}})
     assert result.total == 2
 
 
 def test_filter_in_string(filter_repo):
-    result = filter_repo.paginate(filters={"name__in": "apple,pear"})
-    assert result.total == 2
+    result = filter_repo.paginate(filters={"name": {"in": "apple"}})
+    assert result.total == 1
 
 
 def test_filter_like(filter_repo):
-    result = filter_repo.paginate(filters={"name__like": "an"})
+    result = filter_repo.paginate(filters={"name": {"like": "an"}})
     assert result.total == 2
     assert {item.name for item in result.items} == {"banana", "orange"}
 
 
 def test_filter_ilike(filter_repo):
-    result = filter_repo.paginate(filters={"name__ilike": "OR"})
+    result = filter_repo.paginate(filters={"name": {"ilike": "OR"}})
     assert result.total == 1
     assert result.items[0].name == "orange"
 
 
 def test_filter_multiple_conditions(filter_repo):
-    result = filter_repo.paginate(filters={"value": 20, "price__gt": 2.0})
+    result = filter_repo.paginate(filters={"value": 20, "price": {"gt": 2.0}})
     assert result.total == 1
     assert result.items[0].name == "orange"

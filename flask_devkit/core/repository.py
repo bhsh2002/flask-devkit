@@ -11,7 +11,7 @@ from functools import wraps
 from typing import Any, Dict, Generic, List, NamedTuple, Optional, Type, TypeVar
 
 from flask import current_app
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeMeta, Session
 
@@ -92,11 +92,10 @@ class BaseRepository(Generic[T]):
             return query.filter(self.model.deleted_at.is_(None))
         return query
 
-
     def _apply_filters(self, query, filters: Optional[Dict[str, Any]]):
         """
         Applies structured filters to the query.
-    
+
         filters format example:
         {
             "name": {
@@ -108,7 +107,7 @@ class BaseRepository(Generic[T]):
                 "lte": 50
             }
         }
-    
+
         Supported operators:
         - eq, ne, lt, lte, gt, gte
         - like, ilike
@@ -116,7 +115,7 @@ class BaseRepository(Generic[T]):
         """
         if not filters:
             return query
-    
+
         # map simple ops to SQLAlchemy operator names
         op_map = {
             "eq": "__eq__",
@@ -126,29 +125,33 @@ class BaseRepository(Generic[T]):
             "gt": "__gt__",
             "gte": "__ge__",
         }
-    
+
         for field_name, conditions in filters.items():
             if not hasattr(self.model, field_name):
                 current_app.logger.warning(f"Unknown filter field: {field_name}")
                 continue
-    
+
             column = getattr(self.model, field_name)
-    
+
             # allow shorthand: {"field": "value"} → {"eq": value}
             if not isinstance(conditions, dict):
                 conditions = {"eq": conditions}
-    
+
             for op, value in conditions.items():
                 if value is None:
                     continue
-    
+
                 # normalize single values to list for uniform handling
                 values = value if isinstance(value, (list, tuple, set)) else [value]
-    
+
                 if op in ("like", "ilike"):
                     clauses = []
                     for v in values:
-                        expr = column.like(f"%{v}%") if op == "like" else column.ilike(f"%{v}%")
+                        expr = (
+                            column.like(f"%{v}%")
+                            if op == "like"
+                            else column.ilike(f"%{v}%")
+                        )
                         clauses.append(expr)
                     query = query.filter(or_(*clauses))  # match ANY
                 elif op == "in":
@@ -158,7 +161,7 @@ class BaseRepository(Generic[T]):
                     query = query.filter(or_(*clauses))
                 else:
                     current_app.logger.warning(f"Unknown filter operator: {op}")
-    
+
         return query
 
     def _apply_ordering(self, query, order_by: Optional[List[str]] = None):
