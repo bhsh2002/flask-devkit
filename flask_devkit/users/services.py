@@ -35,10 +35,7 @@ class UserService(BaseService[User]):
             raise BusinessLogicError("Password must include letters and numbers.")
 
     def _username_exists(self, username: str) -> bool:
-        return (
-            self._db_session.query(User).filter(User.username == username).first()
-            is not None
-        )
+        return self.repo.find_one_by({"username": username}) is not None
 
     def pre_create_hook(self, data: Dict[str, Any]) -> Dict[str, Any]:
         username = data.get("username")
@@ -54,7 +51,7 @@ class UserService(BaseService[User]):
         return data
 
     def login_user(self, username: str, password: str) -> Tuple[User, str, str]:
-        user = self.repo._query().filter(User.username == username).first()
+        user = self.repo.find_one_by({"username": username})
 
         if not user or not user.check_password(password):
             raise AuthenticationError("Invalid credentials.")

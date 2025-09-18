@@ -15,6 +15,7 @@ class DevKit:
         app: Optional[APIFlask] = None,
         bp: Optional[APIBlueprint] = None,
         additional_claims_loader: Optional[Callable] = None,
+        url_prefix: str = "/api/v1",
     ):
         self.additional_claims_loader = additional_claims_loader
         self.user_service: Optional[UserService] = None
@@ -23,7 +24,7 @@ class DevKit:
 
         if app is not None:
             if bp is None:
-                bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
+                bp = APIBlueprint("api_v1", __name__, url_prefix=url_prefix)
             self.init_app(app, bp)
 
     def init_app(self, app: APIFlask, bp: APIBlueprint):
@@ -45,7 +46,7 @@ class DevKit:
 
         # Initialize db and jwt
         db.init_app(app)
-        app.config["JWT_TOKEN_LOCATION"] = ["headers"]
+        app.config.setdefault("JWT_TOKEN_LOCATION", ["headers"])
         JWTManager(app)
 
         # Initialize services

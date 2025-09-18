@@ -181,16 +181,39 @@ class BaseRepository(Generic[T]):
 
     @handle_db_errors
     def get_by_id(self, id_: Any, include_soft_deleted: bool = False) -> Optional[T]:
-        """Fetches a single record by its primary key."""
-        query = self._query().filter_by(id=id_)
-        query = self._filter_soft_deleted(query, include_soft_deleted)
-        return query.first()
+        """Fetches a single record by its primary key using `session.get()`."""
+        entity = self._db_session.get(self.model, id_)
+
+        if entity and not include_soft_deleted and hasattr(entity, "deleted_at"):
+            if getattr(entity, "deleted_at") is not None:
+                return None  # Treat as not found if soft-deleted
+
+        return entity
 
     @handle_db_errors
     def get_by_uuid(self, uuid: str, include_soft_deleted: bool = False) -> Optional[T]:
         """Fetches a single record by its UUID."""
         query = self._query().filter_by(uuid=uuid)
         query = self._filter_soft_deleted(query, include_soft_deleted)
+        return query.first()
+
+    @handle_db_errors
+    def find_one_by(
+        self, filters: Dict[str, Any], include_soft_deleted: bool = False
+    ) -> Optional[T]:
+        """
+        Finds a single record matching the given filters.
+
+        Args:
+            filters: A dictionary of filters to apply.
+            include_soft_deleted: Whether to include soft-deleted items.
+
+        Returns:
+            A single model instance or None.
+        """
+        query = self._query()
+        query = self._filter_soft_deleted(query, include_soft_deleted)
+        query = self._apply_filters(query, filters)
         return query.first()
 
     @handle_db_errors
