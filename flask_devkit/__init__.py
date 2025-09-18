@@ -60,11 +60,20 @@ class DevKit:
             model=Permission, db_session=db.session
         )
 
+        # Register CLI commands
+        self._register_cli(app)
+
         # Create and register blueprints
         self._register_blueprints(bp)
 
         # Register the main blueprint on the app
         app.register_blueprint(bp)
+
+    def _register_cli(self, app: APIFlask):
+        """Register CLI commands."""
+        from .users.cli import main as seed_command
+
+        app.cli.add_command(seed_command, "devkit-seed")
 
     def _register_blueprints(self, bp: APIBlueprint):
         """Register all blueprints for the auth system."""

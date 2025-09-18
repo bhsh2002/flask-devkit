@@ -1,0 +1,34 @@
+[project]
+name = "devkit-showcase"
+version = "0.1.0"
+description = "A showcase project for the flask-devkit library."
+authors = [
+    {name = "Gemini"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "flask (>=3.1.2,<4.0.0)",
+    "apiflask (>=2.4.0,<3.0.0)",
+    "flask-sqlalchemy (>=3.1.1,<4.0.0)",
+    "marshmallow-sqlalchemy (>=1.4.2,<2.0.0)",
+    "flask-jwt-extended (>=4.7.1,<5.0.0)",
+    "flask-limiter (>=3.13,<4.0)",
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "flask-devkit @ file:///home/bahaa/dev/libraries/flask-devkit"
+]
+
+
+[tool.poetry]
+packages = [{include = "showcase_app"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+flask-devkit = {develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+
