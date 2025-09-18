@@ -62,15 +62,24 @@ def seed_default_auth(
     Idempotently seed default permissions, an 'admin' role with full permissions,
     and an initial admin user assigned to that role.
     """
+    # Fetch existing permissions in one query to avoid N+1 problem
+    existing_perms_query = session.query(Permission).filter(
+        Permission.name.in_(DEFAULT_PERMISSIONS)
+    )
+    existing_perms_map = {p.name: p for p in existing_perms_query}
+
     created_perms = 0
     perms: list[Permission] = []
     for name in DEFAULT_PERMISSIONS:
-        existing = session.query(Permission).filter(Permission.name == name).first()
-        if existing is None:
+        perm = existing_perms_map.get(name)
+        if perm is None:
+            perm = Permission(name=name)
+            session.add(perm)
             created_perms += 1
-            existing = Permission(name=name)
-            session.add(existing)
-        perms.append(existing)
+        perms.append(perm)
+
+    # Flush to get instances ready for association
+    session.flush()
 
     admin_role = _get_or_create_role(
         session, name="admin", display_name="Administrator", is_system_role=True
@@ -88,6 +97,7 @@ def seed_default_auth(
         admin_user.set_password(admin_password)
         session.add(admin_user)
         created_user = True
+        session.flush()  # Flush to get the admin_user.id before association
 
     # Check if the role is already assigned to the user
     existing_association = (

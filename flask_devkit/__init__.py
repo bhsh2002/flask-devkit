@@ -15,7 +15,6 @@ class DevKit:
         app: Optional[APIFlask] = None,
         bp: Optional[APIBlueprint] = None,
         additional_claims_loader: Optional[Callable] = None,
-        url_prefix: str = "/api/v1",
     ):
         self.additional_claims_loader = additional_claims_loader
         self.user_service: Optional[UserService] = None
@@ -24,6 +23,7 @@ class DevKit:
 
         if app is not None:
             if bp is None:
+                url_prefix = app.config.get("DEVKIT_URL_PREFIX", "/api/v1")
                 bp = APIBlueprint("api_v1", __name__, url_prefix=url_prefix)
             self.init_app(app, bp)
 
@@ -62,6 +62,9 @@ class DevKit:
 
         # Create and register blueprints
         self._register_blueprints(bp)
+
+        # Register the main blueprint on the app
+        app.register_blueprint(bp)
 
     def _register_blueprints(self, bp: APIBlueprint):
         """Register all blueprints for the auth system."""

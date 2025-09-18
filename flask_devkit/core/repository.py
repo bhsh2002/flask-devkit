@@ -11,7 +11,7 @@ from functools import wraps
 from typing import Any, Dict, Generic, List, NamedTuple, Optional, Type, TypeVar
 
 from flask import current_app
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, inspect
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeMeta, Session, Query
 
@@ -261,7 +261,8 @@ class BaseRepository(Generic[T]):
         query = self._apply_filters(query, filters_copy)
 
         # Using a subquery for count for performance on complex queries
-        count_query = query.with_entities(func.count(self.model.id))
+        pk_column = inspect(self.model).primary_key[0]
+        count_query = query.with_entities(func.count(pk_column))
         total_count = count_query.scalar()
 
         total_pages = math.ceil(total_count / per_page) if total_count > 0 else 0

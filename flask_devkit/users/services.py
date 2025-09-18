@@ -67,15 +67,15 @@ class UserService(BaseService[User]):
         return user, access_token, refresh_token
 
     def generate_tokens_for_user(self, user: User) -> Tuple[str, str]:
-        identity = str(getattr(user, "uuid", user.id))
-        roles = list(getattr(user, "roles", []))
-        is_super_admin = any(getattr(role, "is_system_role", False) for role in roles)
+        identity = str(user.uuid)
+        roles = user.roles or []
+        is_super_admin = any(role.is_system_role for role in roles)
+
         permissions = []
         for role in roles:
-            for perm in getattr(role, "permissions", []) or []:
-                name = getattr(perm, "name", None)
-                if name:
-                    permissions.append(name)
+            for perm in role.permissions or []:
+                if perm.name:
+                    permissions.append(perm.name)
 
         additional_claims = {
             "user_id": user.id,

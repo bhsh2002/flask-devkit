@@ -40,3 +40,33 @@ def test_setup_rate_limiting(app):
     assert limiter is not None
     # Check if the extension is registered with the app
     assert "limiter" in app.extensions
+
+
+def test_log_activity_hides_sensitive_kwargs(app):
+    """
+    Tests that the log_activity decorator redacts sensitive keyword arguments.
+    """
+    TEST_PASSWORD = "my-secret-password"
+    TEST_TOKEN = "my-secret-token"
+
+    @log_activity
+    def function_with_sensitive_args(username, password, token):
+        pass
+
+    with app.app_context():
+        with patch("flask_devkit.helpers.decorators.current_app.logger") as mock_logger:
+            function_with_sensitive_args(
+                "testuser", password=TEST_PASSWORD, token=TEST_TOKEN
+            )
+
+            # Check that the sensitive values are redacted in the log message
+            assert mock_logger.info.call_count == 2
+            first_call_args = mock_logger.info.call_args_list[0]
+            log_message = first_call_args[0][0]
+
+            assert "Calling function function_with_sensitive_args" in log_message
+            assert TEST_PASSWORD not in log_message
+            assert TEST_TOKEN not in log_message
+            assert "'password': '***'" in log_message
+            assert "'token': '***'" in log_message
+            assert "testuser" in log_message

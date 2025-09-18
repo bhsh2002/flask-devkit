@@ -18,7 +18,7 @@ def app():
 
     bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
     DevKit(app, bp)
-    app.register_blueprint(bp)
+
 
     with app.app_context():
         Base.metadata.create_all(db.engine)

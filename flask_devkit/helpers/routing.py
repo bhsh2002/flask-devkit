@@ -13,7 +13,7 @@ from flask_devkit.core.exceptions import AppBaseException, NotFoundError
 
 try:
     from flask_jwt_extended.exceptions import CSRFError, NoAuthorizationError
-except Exception:
+except ImportError:
     NoAuthorizationError = None
     CSRFError = None
 from flask_devkit.auth.decorators import permission_required
@@ -67,6 +67,7 @@ def register_crud_routes(
 ):
     """
     Registers a standard set of CRUD routes for a given entity.
+    This refactored version applies decorators directly for better readability.
     """
     register_error_handlers(bp)
 
@@ -81,151 +82,150 @@ def register_crud_routes(
 
     cfg: Dict[str, Dict[str, Any]] = routes_config or {}
 
-    def get_route_decorators(
-        route_name: str, default_require_auth: bool, default_permission: str | None
-    ) -> List[Callable]:
-        route_cfg = cfg.get(route_name, {})
-        decorators: List[Callable] = []
-
-        require_auth = route_cfg.get("auth_required", default_require_auth)
-        if require_auth:
-            decorators.append(jwt_required())
-
-        permission = route_cfg.get("permission", default_permission)
-        if permission:
-            decorators.append(permission_required(permission))
-
-        # Add unit_of_work for state-changing methods
-        if route_name in {"create", "update", "delete"}:
-            decorators.append(unit_of_work)
-
-        return decorators
-
-    def _apply_decorators(func, decorators: List[Callable]):
-        for dec in reversed(decorators):
-            func = dec(func)
-        return func
-
-    def list_items(query_data):
-        """Retrieve a paginated list of items."""
-        filters = query_data.copy()
-        page = filters.pop("page", 1)
-        per_page = filters.pop("per_page", 10)
-        sort_by_str = filters.pop("sort_by", None)
-        order_by = None
-        if sort_by_str:
-            order_by = [s.strip() for s in sort_by_str.split(",") if s.strip()]
-        include_soft_deleted = filters.pop("include_soft_deleted", False)
-
-        return service.paginate(
-            page=page,
-            per_page=per_page,
-            filters=filters,
-            order_by=order_by,
-            include_soft_deleted=include_soft_deleted,
-        ), 200
-
-    def get_item(**kwargs):
-        """Retrieve a single item by its ID or UUID."""
-        item_id = kwargs[id_field]
-        method_to_call = getattr(service, f"get_by_{id_field}")
-        item = method_to_call(item_id)
-        if item is None:
-            raise NotFoundError(entity_name, item_id)
-        return item
-
-    def create_item(json_data):
-        """Create a new item."""
-        new = service.create(json_data)
-        return new
-
-    def update_item(json_data, **kwargs):
-        """Update a single item."""
-        item_id = kwargs[id_field]
-        updated = service.update(item_id, json_data, id_field=id_field)
-        return updated
-
-    def delete_item(**kwargs):
-        """Delete a single item."""
-        item_id = kwargs[id_field]
-        service.delete(entity_id=item_id, id_field=id_field)
-        return {"message": f"{entity_name.capitalize()} deleted successfully."}
-
+    # --- Route: List ---
     if cfg.get("list", {}).get("enabled", True):
-        list_doc_params = {"summary": f"List all {entity_name}s"}
-        if cfg.get("list", {}).get("auth_required", True):
-            list_doc_params["security"] = "bearerAuth"
+        route_cfg = cfg.get("list", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission")
 
-        list_decorators: List[Callable] = [
-            bp.get("/"),
-            bp.input(query_schema, location="query"),
-            bp.output(pagination_out_schema),
-            bp.doc(**list_doc_params),
-        ] + get_route_decorators(
-            "list", default_require_auth=True, default_permission=None
+        def list_items(query_data):
+            """Retrieve a paginated list of items."""
+            filters = query_data.copy()
+            page = filters.pop("page", 1)
+            per_page = filters.pop("per_page", 10)
+            sort_by_str = filters.pop("sort_by", None)
+            order_by = (
+                [s.strip() for s in sort_by_str.split(",") if s.strip()]
+                if sort_by_str
+                else None
+            )
+            include_soft_deleted = filters.pop("include_soft_deleted", False)
+            return service.paginate(
+                page=page,
+                per_page=per_page,
+                filters=filters,
+                order_by=order_by,
+                include_soft_deleted=include_soft_deleted,
+            ), 200
+
+        view = list_items
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"List all {entity_name}s"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.get("/")(
+            bp.input(query_schema, location="query")(
+                bp.output(pagination_out_schema)(bp.doc(**doc_params)(view))
+            )
         )
-        list_items = _apply_decorators(list_items, list_decorators)
 
+    # --- Route: Get ---
     if cfg.get("get", {}).get("enabled", True):
-        get_doc_params = {"summary": f"Get a single {entity_name}"}
-        if cfg.get("get", {}).get("auth_required", True):
-            get_doc_params["security"] = "bearerAuth"
+        route_cfg = cfg.get("get", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission")
 
-        get_decorators: List[Callable] = [
-            bp.get(f"/<{id_field}>"),
-            bp.output(main_schema),
-            bp.doc(**get_doc_params),
-        ] + get_route_decorators(
-            "get", default_require_auth=True, default_permission=None
+        def get_item(**kwargs):
+            """Retrieve a single item by its ID or UUID."""
+            item_id = kwargs[id_field]
+            method_to_call = getattr(service, f"get_by_{id_field}")
+            item = method_to_call(item_id)
+            if item is None:
+                raise NotFoundError(entity_name, item_id)
+            return item
+
+        view = get_item
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"Get a single {entity_name}"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.get(f"/<{id_field}>")(
+            bp.output(main_schema)(bp.doc(**doc_params)(view))
         )
-        get_item = _apply_decorators(get_item, get_decorators)
 
+    # --- Route: Create ---
     if cfg.get("create", {}).get("enabled", True):
-        create_doc_params = {"summary": f"Create a new {entity_name}"}
-        if cfg.get("create", {}).get("auth_required", True):
-            create_doc_params["security"] = "bearerAuth"
+        route_cfg = cfg.get("create", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission", f"create:{entity_name}")
 
-        create_decorators: List[Callable] = [
-            bp.post("/"),
-            bp.input(input_schema),
-            bp.output(main_schema, status_code=201),
-            bp.doc(**create_doc_params),
-        ] + get_route_decorators(
-            "create",
-            default_require_auth=True,
-            default_permission=f"create:{entity_name}",
+        def create_item(json_data):
+            """Create a new item."""
+            return service.create(json_data)
+
+        view = unit_of_work(create_item)
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"Create a new {entity_name}"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.post("/")(
+            bp.input(input_schema)(
+                bp.output(main_schema, status_code=201)(bp.doc(**doc_params)(view))
+            )
         )
-        create_item = _apply_decorators(create_item, create_decorators)
 
+    # --- Route: Update ---
     if cfg.get("update", {}).get("enabled", True):
-        update_doc_params = {"summary": f"Update an existing {entity_name}"}
-        if cfg.get("update", {}).get("auth_required", True):
-            update_doc_params["security"] = "bearerAuth"
+        route_cfg = cfg.get("update", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission", f"update:{entity_name}")
 
-        update_decorators: List[Callable] = [
-            bp.patch(f"/<{id_field}>"),
-            bp.input(update_schema),
-            bp.output(main_schema),
-            bp.doc(**update_doc_params),
-        ] + get_route_decorators(
-            "update",
-            default_require_auth=True,
-            default_permission=f"update:{entity_name}",
+        def update_item(json_data, **kwargs):
+            """Update a single item."""
+            item_id = kwargs[id_field]
+            return service.update(item_id, json_data, id_field=id_field)
+
+        view = unit_of_work(update_item)
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"Update an existing {entity_name}"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.patch(f"/<{id_field}>")(
+            bp.input(update_schema)(bp.output(main_schema)(bp.doc(**doc_params)(view)))
         )
-        update_item = _apply_decorators(update_item, update_decorators)
 
+    # --- Route: Delete ---
     if cfg.get("delete", {}).get("enabled", True):
-        delete_doc_params = {"summary": f"Delete an {entity_name}"}
-        if cfg.get("delete", {}).get("auth_required", True):
-            delete_doc_params["security"] = "bearerAuth"
+        route_cfg = cfg.get("delete", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission", f"delete:{entity_name}")
 
-        delete_decorators: List[Callable] = [
-            bp.delete(f"/<{id_field}>"),
-            bp.output(MessageSchema, status_code=200),
-            bp.doc(**delete_doc_params),
-        ] + get_route_decorators(
-            "delete",
-            default_require_auth=True,
-            default_permission=f"delete:{entity_name}",
+        def delete_item(**kwargs):
+            """Delete a single item."""
+            item_id = kwargs[id_field]
+            service.delete(entity_id=item_id, id_field=id_field)
+            return {"message": f"{entity_name.capitalize()} deleted successfully."}
+
+        view = unit_of_work(delete_item)
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"Delete an {entity_name}"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.delete(f"/<{id_field}>")(
+            bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
         )
-        delete_item = _apply_decorators(delete_item, delete_decorators)

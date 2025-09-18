@@ -1,9 +1,32 @@
 # flask_devkit/helpers/decorators.py
+import copy
 from functools import wraps
 
 from flask import current_app
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+SENSITIVE_KEYS = ["password", "token", "secret", "key", "authorization", "bearer"]
+
+
+def _filter_sensitive_data(data):
+    """Recursively filter sensitive keys from a dictionary."""
+    if not isinstance(data, dict):
+        return data
+
+    clean_data = {}
+    for key, value in data.items():
+        if isinstance(key, str) and any(
+            sensitive_key in key.lower() for sensitive_key in SENSITIVE_KEYS
+        ):
+            clean_data[key] = "***"
+        elif isinstance(value, dict):
+            clean_data[key] = _filter_sensitive_data(value)
+        elif isinstance(value, list):
+            clean_data[key] = [_filter_sensitive_data(item) for item in value]
+        else:
+            clean_data[key] = value
+    return clean_data
 
 
 def log_activity(f):
@@ -11,9 +34,13 @@ def log_activity(f):
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Deepcopy kwargs to avoid modifying the original dictionary
+        kwargs_for_logging = copy.deepcopy(kwargs)
+        filtered_kwargs = _filter_sensitive_data(kwargs_for_logging)
+
         current_app.logger.info(
             f"Activity: Calling function {f.__name__}"
-            f" with args: {args}, kwargs: {kwargs}"
+            f" with args: {args}, kwargs: {filtered_kwargs}"
         )
         try:
             result = f(*args, **kwargs)
