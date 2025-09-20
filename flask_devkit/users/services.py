@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Type
 
 from flask import current_app
 from flask_jwt_extended import create_access_token, create_refresh_token
@@ -9,6 +9,7 @@ from flask_devkit.core.exceptions import (
     BusinessLogicError,
     NotFoundError,
 )
+from flask_devkit.core.repository import BaseRepository
 from flask_devkit.core.service import BaseService
 
 from .models import Permission, Role, User, UserRoleAssociation
@@ -20,9 +21,12 @@ class UserService(BaseService[User]):
         model: type[User],
         db_session,
         *,
+        repository_class: Type[BaseRepository] = None,
         additional_claims_loader: Optional[Callable] = None,
     ):
-        super().__init__(model, db_session)
+        super().__init__(
+            model, db_session, repository_class=repository_class
+        )
         self.additional_claims_loader = additional_claims_loader
 
     @staticmethod
@@ -119,6 +123,11 @@ class UserService(BaseService[User]):
 
 
 class RoleService(BaseService[Role]):
+    def __init__(self, model, db_session, repository_class=None):
+        super().__init__(
+            model, db_session, repository_class=repository_class
+        )
+
     def pre_delete_hook(self, instance: Role) -> None:
         if instance.is_system_role:
             raise BusinessLogicError(
@@ -175,6 +184,11 @@ class RoleService(BaseService[Role]):
 
 
 class PermissionService(BaseService[Permission]):
+    def __init__(self, model, db_session, repository_class=None):
+        super().__init__(
+            model, db_session, repository_class=repository_class
+        )
+
     def assign_permission_to_role(self, role_id: int, permission_id: int):
         role = self._db_session.get(Role, role_id)
         perm = self.get_by_id(permission_id)

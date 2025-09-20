@@ -98,6 +98,10 @@ def seed_default_auth(
         session.add(admin_user)
         created_user = True
         session.flush()  # Flush to get the admin_user.id before association
+    else:
+        # If user exists, just update the password to the provided one
+        admin_user.set_password(admin_password)
+        session.add(admin_user)
 
     # Check if the role is already assigned to the user
     existing_association = (
@@ -110,6 +114,7 @@ def seed_default_auth(
         session.add(association)
 
     session.commit()
+
     return {
         "created_permissions": created_perms,
         "created_admin_user": created_user,

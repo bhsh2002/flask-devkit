@@ -1,13 +1,110 @@
 # tests/core/test_services.py
-from unittest.mock import patch
-
 import pytest
+from unittest.mock import MagicMock, patch
 from sqlalchemy import Column, String
-
+from flask_devkit.core.service import BaseService
 from flask_devkit.core.exceptions import DatabaseError, NotFoundError
 from flask_devkit.core.mixins import IDMixin
-from flask_devkit.core.service import BaseService
 from tests.helpers import Base
+
+# A mock model for testing
+class MockModel:
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+
+# New Test Class for Service Hooks
+class TestBaseServiceHooks:
+    @pytest.fixture
+    def mock_repo(self):
+        repo = MagicMock()
+        repo.get_by_id.return_value = MockModel(id=1, name="test_item")
+        return repo
+
+    def test_post_get_hook_modifies_entity(self, mock_repo):
+        """
+        This test will FAIL until the post_get_hook is implemented in BaseService.
+        It checks if a hook can modify an entity after it has been retrieved.
+        """
+        
+        class CustomServiceWithHooks(BaseService):
+            def post_get_hook(self, entity):
+                # This hook should be called by get_by_id and get_by_uuid
+                if entity:
+                    entity.computed_field = "hook_was_here"
+                return entity
+
+        # We need to mock the repository on the service
+        service = CustomServiceWithHooks(model=MockModel, db_session=MagicMock())
+        service.repo = mock_repo
+
+        # Call the service method
+        item = service.get_by_id(1)
+
+        # Assert that the hook was called and modified the item
+        assert item is not None
+        assert item.computed_field == "hook_was_here"
+
+
+class TestBaseService:
+    @pytest.fixture
+    def mock_repo(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def service(self, mock_repo):
+        # Configure the mock model with a __name__ attribute
+        mock_model = MagicMock()
+        mock_model.__name__ = "MockModel"
+        # We need to mock the repository on the service
+        service = BaseService(model=mock_model, db_session=MagicMock())
+        service.repo = mock_repo
+        return service
+
+    def test_create_calls_repo_create(self, service, mock_repo):
+        data = {"name": "test"}
+        service.create(data)
+        mock_repo.create.assert_called_once_with(data)
+
+    def test_update_fetches_and_updates(self, service, mock_repo):
+        mock_entity = MagicMock()
+        mock_repo.get_by_id.return_value = mock_entity
+        data = {"name": "updated"}
+        
+        updated_entity = service.update(1, data)
+        
+        mock_repo.get_by_id.assert_called_once_with(1)
+        assert updated_entity is not None
+        # Check if the pre_update_hook logic was applied (default behavior)
+        assert mock_entity.name == "updated"
+
+    def test_update_raises_not_found(self, service, mock_repo):
+        mock_repo.get_by_id.return_value = None
+        with pytest.raises(NotFoundError):
+            service.update(1, {"name": "updated"})
+
+    def test_delete_fetches_and_deletes(self, service, mock_repo):
+        mock_entity = MagicMock()
+        mock_repo.get_by_id.return_value = mock_entity
+        
+        service.delete(1)
+        
+        mock_repo.get_by_id.assert_called_once_with(1)
+        mock_repo.delete.assert_called_once_with(mock_entity, soft=True)
+
+    def test_delete_raises_not_found(self, service, mock_repo):
+        mock_repo.get_by_id.return_value = None
+        with pytest.raises(NotFoundError):
+            service.delete(1)
+
+    def test_get_by_id_delegates_to_repo(self, service, mock_repo):
+        service.get_by_id(123)
+        mock_repo.get_by_id.assert_called_once_with(123, False)
+
+    def test_paginate_delegates_to_repo(self, service, mock_repo):
+        service.paginate(page=2, per_page=10)
+        mock_repo.paginate.assert_called_once_with(page=2, per_page=10, filters=None, order_by=None, include_soft_deleted=False)
+
 
 
 # Define a simple model for testing the service

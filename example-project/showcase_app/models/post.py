@@ -20,3 +20,4 @@ class Post(db.Model, TimestampMixin, UUIDMixin):
 from flask_devkit.users.models import User  # noqa: E402
 
 User.posts = relationship("Post", back_populates="author", lazy="dynamic")
+

@@ -1,21 +1,27 @@
 # Changelog
 
-## [Unreleased]
+All notable changes to this project will be documented in this file.
 
-### Fixed
-- **Security:** The `log_activity` decorator no longer logs sensitive information (like passwords) from function arguments.
-- **Performance:** Fixed an N+1 query issue in the `seed_default_auth` function when seeding default permissions.
-- **Robustness:** The `paginate` method in the `BaseRepository` now correctly handles models with custom primary key names.
-- **Robustness:** Replaced a broad `except Exception` with a more specific `except ImportError` for optional `flask-jwt-extended` imports.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### Changed
-- **Flexibility:** The `url_prefix` for the DevKit blueprint is now configurable via the `DEVKIT_URL_PREFIX` app config variable. This replaces the previous `url_prefix` constructor argument.
-- **Refactor:** Simplified the complex `register_crud_routes` function for better readability and maintainability.
-- **Refactor:** Removed unsafe `getattr` calls in the `generate_tokens_for_user` service method in favor of direct attribute access.
-- The `logout` endpoint has been removed to avoid providing a false sense of security in a stateless JWT environment. Token invalidation is now the client's responsibility.
-- The `BaseRepository.get_by_id` method now uses the more efficient `session.get()` for primary key lookups.
-- The `init_app` method now uses `app.config.setdefault()` for JWT configuration, allowing users to override default settings.
-- Refactored user routes to use a `before_request` handler, eliminating repetitive code and adhering to the DRY principle.
+## [0.2.0] - 2025-09-20
+
+This release marks a major refactoring of the library to favor flexibility, extensibility, and developer experience over the previous hard-coded, batteries-included approach.
 
 ### Added
-- Added a generic `find_one_by` method to the `BaseRepository` to provide a reusable way to fetch single records by various criteria.
+
+- **Selective Module Loading**: The `DevKit` class no longer loads all modules by default. Developers can now instantiate services manually and register them using `devkit.register_service("my_service", my_service_instance)`.
+- **Repository Overriding**: Added `devkit.register_repository("service_name", CustomRepoClass)` to allow developers to provide a custom repository class (that inherits from `BaseRepository`) for default services. This enables extending or modifying database logic without forking the library.
+- **Read Hooks in `BaseService`**: Introduced `pre_get_hook`, `post_get_hook`, `pre_list_hook`, and `post_list_hook` to `BaseService`, allowing for custom logic injection during read operations (e.g., caching, query modification, entity transformation).
+- **Custom Route Factory**: Added a new helper function `register_custom_route` to `flask_devkit.helpers.routing`. It simplifies the creation of custom, non-CRUD endpoints by encapsulating the boilerplate for applying decorators like `jwt_required`, `permission_required`, `unit_of_work`, and schema validation.
+
+### Changed
+
+- **`DevKit` Initialization**: The `DevKit` class is now more flexible. For backward compatibility, if no services are manually registered, it will fall back to loading the default `user`, `role`, and `permission` services.
+- **Service `__init__` Methods**: The `UserService`, `RoleService`, and `PermissionService` constructors were updated to accept a `repository_class` argument, enabling the repository override feature.
+- **`BaseService` Read Methods**: The `get_by_id`, `get_by_uuid`, and `paginate` methods were updated to integrate the new read hooks.
+
+### Fixed
+
+- Corrected several fragile test setups that were discovered during refactoring, leading to a more robust test suite.

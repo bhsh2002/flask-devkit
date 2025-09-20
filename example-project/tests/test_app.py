@@ -22,3 +22,11 @@ def test_posts_endpoint_exists(client):
     response = client.get("/api/v1/posts/")
     # Should be accessible to the public
     assert response.status_code == 200
+
+
+def test_user_endpoints_are_public(client):
+    """
+    Tests that the user list endpoint is public as configured in create_app.
+    """
+    response = client.get("/api/v1/users/")
+    assert response.status_code == 200

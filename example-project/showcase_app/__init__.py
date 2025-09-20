@@ -1,39 +1,61 @@
 import os
-
 from apiflask import APIBlueprint, APIFlask
 from dotenv import load_dotenv
 
 from flask_devkit import DevKit
 
+# Import the components we want to customize
+from showcase_app.repositories.user import CustomUserRepository
+
 
 def create_app(config_overrides=None):
-    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+    """App factory function."""
+    # Manually load .env file to ensure it's available for all commands
+    # When running from the root, the cwd is the root, so we need to point to the example project's .env
+    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    load_dotenv(dotenv_path=dotenv_path)
 
-    app = APIFlask(__name__)
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
+    app = APIFlask(__name__, title="DevKit Showcase API")
+
+    # Load config from .env file (prefixed with FLASK_)
+    # and then from any overrides passed to the factory.
     app.config.from_prefixed_env()
-
     if config_overrides:
         app.config.update(config_overrides)
 
     # Create a main blueprint that all other blueprints will be registered on
-    main_bp = APIBlueprint(
-        "main_api", __name__, url_prefix=app.config.get("DEVKIT_URL_PREFIX", "/api/v1")
+    api_v1_bp = APIBlueprint(
+        "api_v1", __name__, url_prefix=app.config.get("DEVKIT_URL_PREFIX", "/api/v1")
     )
 
-    # Import and register the posts blueprint
-    # on the main blueprint *before* initializing DevKit
+    # --- Application-Specific Setup ---
+    # Register our application's blueprints onto the main API blueprint first
     from .routes.post import posts_bp
+    api_v1_bp.register_blueprint(posts_bp)
 
-    main_bp.register_blueprint(posts_bp)
+    # --- DevKit Setup ---
+    # 1. Instantiate DevKit
+    devkit = DevKit()
 
-    # Initialize extensions, passing the main blueprint to DevKit
-    # DevKit will handle registering main_bp on the app
-    DevKit(app, bp=main_bp)
+    # 2. (Example) Register our custom repository for the user service.
+    devkit.register_repository("user", CustomUserRepository)
 
-    # Register CLI commands
+    # 3. (Example) Make the user list and detail routes public.
+    user_routes_config = {
+        "list": {"auth_required": False},
+        "get": {"auth_required": False},
+    }
+    devkit.register_routes_config("user", user_routes_config)
+
+    # 4. Initialize DevKit. It will add its own auth routes to our main blueprint
+    #    and then register the main blueprint on the app.
+    devkit.init_app(app, bp=api_v1_bp)
+
+    # --- CLI Commands ---
     from . import cli
 
     app.cli.add_command(cli.init_db_command)
+    app.cli.add_command(cli.truncate_db_command)
+    app.cli.add_command(cli.drop_db_command)
 
     return app

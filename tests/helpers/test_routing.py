@@ -1,5 +1,6 @@
 # tests/helpers/test_routing.py
 import pytest
+from unittest.mock import patch, MagicMock
 from apiflask import APIBlueprint, APIFlask
 from flask_jwt_extended import create_access_token
 from sqlalchemy import Column, String
@@ -8,6 +9,7 @@ from flask_devkit import DevKit
 from flask_devkit.core.mixins import IDMixin, UUIDMixin
 from flask_devkit.core.service import BaseService
 from flask_devkit.database import db
+from flask_devkit.helpers.routing import register_custom_route
 from flask_devkit.helpers.schemas import create_crud_schemas
 from tests.helpers import Base
 
@@ -29,7 +31,8 @@ def app(db_session):
     app.config["JWT_SECRET_KEY"] = "routing-secret"
 
     # We need a custom DevKit setup for this test to register a new model
-    DevKit(app)
+    devkit = DevKit()
+    devkit.init_app(app)
 
     # Manually initialize services for the test model
     widget_service = BaseService(model=Widget, db_session=db_session)
@@ -144,3 +147,42 @@ def test_permission_denied_for_create(app, client):
         headers=headers,
     )
     assert response.status_code == 403
+
+
+def test_register_custom_route_applies_decorators():
+    """
+    Tests that register_custom_route correctly applies all decorators.
+    This test will fail until the function is implemented.
+    """
+    bp = MagicMock(spec=APIBlueprint)
+    view_func = MagicMock()
+
+    # Mock the decorators to assert they are called
+    with (
+        patch("flask_devkit.helpers.routing.unit_of_work") as mock_uow,
+        patch("flask_devkit.helpers.routing.permission_required") as mock_perm,
+        patch("flask_devkit.helpers.routing.jwt_required") as mock_jwt,
+    ):
+        
+        # Configure mocks to return a callable
+        mock_uow.return_value = lambda f: f
+        mock_perm.return_value = lambda f: f
+        mock_jwt.return_value = lambda f: f
+
+        register_custom_route(
+            bp=bp,
+            rule="/custom",
+            view_func=view_func,
+            methods=["POST"],
+            apply_unit_of_work=True,
+            permission="custom:perm",
+            auth_required=True
+        )
+
+        # Assert that our decorators were called
+        mock_uow.assert_called_once()
+        mock_perm.assert_called_once_with("custom:perm")
+        mock_jwt.assert_called_once()
+
+        # Assert that the final decorated view was registered with the blueprint
+        bp.route.assert_called_once_with("/custom", methods=["POST"])

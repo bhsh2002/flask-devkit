@@ -1,101 +1,141 @@
-# Flask-DevKit
+# Flask-DevKit: The Extensible Flask API Toolkit
 
-A comprehensive Flask extension for rapid, secure API development with built-in JWT authentication and RBAC.
+`Flask-DevKit` is a powerful, unopinionated toolkit designed to accelerate the development of secure, scalable, and maintainable APIs with Flask. It provides a solid architectural foundation based on proven design patterns like Repository and Unit of Work, while offering complete flexibility to customize, replace, or extend any part of the system.
 
-## Features
+Unlike rigid frameworks, DevKit is a collection of tools that you can adopt incrementally or use as a complete starting point. It comes with a default, full-featured authentication and RBAC module that can be used out-of-the-box, selectively enabled, or completely replaced with your own logic.
 
-*   **Flask Extension Pattern**: Integrates seamlessly with your Flask app using the standard `init_app` pattern.
-*   **Structured Architecture**: Enforces a clear separation of concerns between the data access layer (Repository), business logic (Service), and the API (Routes).
-*   **Automatic CRUD Generation**: Provides powerful factories to generate complete CRUD API endpoints from your models.
-*   **Centralized Transaction Management**: Uses a Unit of Work pattern to ensure database operations are atomic.
-*   **Generic Repository & Service Layers**: Encapsulates common database and business logic for reusability.
-*   **Reusable Database Components**: Comes with ready-to-use SQLAlchemy Mixins for common fields (`id`, `uuid`, timestamps, soft deletes).
-*   **Unified Exception System**: Provides custom exceptions that automatically translate into consistent JSON error responses.
-*   **Built-in Security**: Includes decorators to verify JWT authentication and permissions at the route level.
-*   **Database Migrations**: Integrated with Alembic for easy database schema management.
+---
 
-## Requirements
+## Philosophy: Extensibility First
 
-*   Python 3.11+
-*   Flask & APIFlask
-*   SQLAlchemy & Flask-SQLAlchemy
-*   Flask-JWT-Extended
-*   Alembic
+-   **You are in control:** The library makes no assumptions about your application's needs. Every major component—services, repositories, routes—can be overridden or extended.
+-   **Convention over configuration, but configuration when you need it:** Sensible defaults allow for rapid development, but a rich set of registration methods provides hooks to inject your custom logic wherever it's needed.
+-   **Solid Architecture:** By providing clean abstractions for the service layer, repository pattern, and unit of work, DevKit helps you build robust applications that are easy to test and maintain.
 
-## Installation
+## Core Components
 
-1.  Ensure you have Poetry installed.
-2.  Install the dependencies from your project's root:
-    ```bash
-    poetry install
-    ```
+At its heart, Flask-DevKit consists of several key components that work together.
 
-## Quick Start
+### 1. The `DevKit` Class
 
-`Flask-DevKit` is designed to be the foundation for your Flask project's authentication and authorization system. Here’s how to integrate it.
+This is the main entry point for the extension. It acts as a central registry for your services and configurations.
 
-**In your main `app.py`:**
+-   `devkit.init_app(app, bp)`: Initializes the extension and registers its components.
+-   `devkit.register_service(name, service_instance)`: Registers a custom or default service (e.g., `UserService`).
+-   `devkit.register_repository(service_name, CustomRepoClass)`: Overrides the default `BaseRepository` for a specific service.
+-   `devkit.register_routes_config(service_name, config_dict)`: Overrides the default route settings (e.g., auth requirements) for a service's CRUD endpoints.
+
+### 2. `BaseService`
+
+A generic class for encapsulating business logic. Your own services should inherit from this.
+
+-   **Manages a Repository:** Each service instance holds a repository instance (`self.repo`) for database access.
+-   **Lifecycle Hooks:** Provides a rich set of hooks to inject logic before or after operations:
+    -   `pre_create_hook`, `pre_update_hook`, `pre_delete_hook`
+    -   `pre_get_hook`, `post_get_hook`, `pre_list_hook`, `post_list_hook`
+
+### 3. `BaseRepository`
+
+A generic implementation of the Repository Pattern for SQLAlchemy models.
+
+-   **Encapsulates DB Logic:** Provides standard methods like `create`, `get_by_id`, `paginate`, `delete`, etc.
+-   **Extensible:** Create your own repository class inheriting from `BaseRepository` to add custom queries (e.g., `find_by_email`).
+-   **Error Handling:** Automatically handles common SQLAlchemy errors and wraps them in custom application exceptions.
+
+### 4. Route Helpers
+
+These functions in `flask_devkit.helpers.routing` dramatically reduce boilerplate when creating API endpoints.
+
+-   `register_crud_routes(...)`: Automatically generates a full set of RESTful CRUD endpoints for a service.
+-   `register_custom_route(...)`: A factory for creating custom, non-CRUD endpoints while consistently applying decorators for auth, permissions, validation, and transaction management.
+
+### 5. Unit of Work
+
+The `@unit_of_work` decorator abstracts away session management. It automatically commits the database session on success and rolls back on any exception, ensuring that each request is atomic.
+
+---
+
+## Getting Started: A Practical Guide
+
+Here are common scenarios for using `flask-devkit`.
+
+### Scenario 1: Quick Start with Default Auth
+
+If you need a full-featured authentication and RBAC system immediately, just initialize `DevKit` without registering any services. It will automatically load its default `user`, `role`, and `permission` modules.
+
 ```python
-from apiflask import APIFlask
+# In your app factory
 from flask_devkit import DevKit
-from flask_devkit.database import db
-from flask_devkit.users.bootstrap import seed_default_auth
 
-app = APIFlask(__name__)
-
-# 1. Configure your database and JWT secret key
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
-app.config["JWT_SECRET_KEY"] = "your-super-secret-key"
-
-# 2. Initialize the extension
-dev_kit = DevKit(app)
-
-# 3. (Optional) Create tables and seed default data
-with app.app_context():
-    db.create_all()
-    # Seed the database with default permissions, admin role, and an admin user
-    seed_default_auth(db.session, admin_username="admin", admin_password="your_password")
+devkit = DevKit()
+# This will load default services and register their routes on api_v1_bp
+devkit.init_app(app, bp=api_v1_bp)
 ```
 
-This sets up all the necessary endpoints for authentication, user management, and RBAC.
+### Scenario 2: Overriding the User Repository
 
-## Advanced Usage
-
-### Custom JWT Claims
-
-You can add custom data to your JWT access tokens by providing a loader function during initialization.
+To add a custom query to the `User` model, you can provide your own repository.
 
 ```python
-from flask_devkit.users.models import User
+# 1. Define your custom repository
+class CustomUserRepository(BaseRepository):
+    def find_all_active_users(self):
+        return self._query().filter_by(is_active=True).all()
 
-def add_custom_claims(user: User) -> dict:
-    """Returns a dictionary of custom claims to add to the JWT."""
-    return {"organization_id": user.organization_id} # Example
+# 2. Register it with DevKit
+devkit = DevKit()
+devkit.register_repository("user", CustomUserRepository)
+devkit.init_app(app, bp=api_v1_bp)
 
-# When initializing
-dev_kit = DevKit(app, additional_claims_loader=add_custom_claims)
+# 3. Access it from your app
+with app.app_context():
+    user_service = devkit.get_service("user")
+    active_users = user_service.repo.find_all_active_users()
 ```
 
-## Database Migrations
+### Scenario 3: Making User Profiles Public
 
-This library is integrated with Alembic to manage database schema changes.
+By default, the user endpoints require authentication. You can change this using `register_routes_config`.
 
--   **Set Database URL**: Before running Alembic commands, ensure the `SQLALCHEMY_DATABASE_URI` environment variable is set.
-    ```bash
-    export SQLALCHEMY_DATABASE_URI="your-database-uri"
-    ```
--   **Generate a New Migration**: After changing your SQLAlchemy models, generate a new migration script automatically:
-    ```bash
-    poetry run alembic revision --autogenerate -m "A description of your changes"
-    ```
--   **Apply Migrations**: Apply the latest migrations to your database.
-    ```bash
-    poetry run alembic upgrade head
-    ```
+```python
+devkit = DevKit()
 
-## Running Tests
+public_user_routes = {
+    "list": {"auth_required": False},  # Make the user list public
+    "get": {"auth_required": False},   # Make user detail public
+}
+devkit.register_routes_config("user", public_user_routes)
 
-The project comes with a comprehensive test suite. To run it:
-```bash
-poetry run pytest
+devkit.init_app(app, bp=api_v1_bp)
+```
+
+### Scenario 4: Adding a Custom Service and Routes
+
+This is the most common scenario: using DevKit's tools to manage your own application models.
+
+```python
+# 1. Define your model, schemas, service, and blueprint
+class Post(db.Model, ...): ...
+
+post_schemas = create_crud_schemas(Post, ...)
+
+class PostService(BaseService[Post]):
+    # Optional: Add custom logic with hooks
+    def pre_create_hook(self, data):
+        data["author_id"] = get_jwt_identity()
+        return data
+
+posts_bp = APIBlueprint("posts", __name__, url_prefix="/posts")
+post_service = PostService(model=Post, db_session=db.session)
+
+# 2. Register CRUD routes for your service
+register_crud_routes(
+    bp=posts_bp,
+    service=post_service,
+    schemas=post_schemas,
+    entity_name="post"
+)
+
+# 3. Register your blueprint with the app
+app.register_blueprint(posts_bp)
 ```

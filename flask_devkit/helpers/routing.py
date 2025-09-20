@@ -3,7 +3,7 @@
 Provides a powerful factory function to auto-generate CRUD REST endpoints.
 """
 
-from typing import Any, Callable, Dict, List, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from apiflask import APIBlueprint
 from flask_jwt_extended import jwt_required
@@ -229,3 +229,65 @@ def register_crud_routes(
         bp.delete(f"/<{id_field}>")(
             bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
         )
+
+def register_custom_route(
+    bp: APIBlueprint,
+    rule: str,
+    view_func: Callable,
+    methods: List[str],
+    *,
+    input_schema: Optional[Type] = None,
+    output_schema: Optional[Type] = None,
+    permission: Optional[str] = None,
+    auth_required: bool = True,
+    apply_unit_of_work: bool = False,
+    status_code: int = 200,
+    doc: Optional[Dict] = None,
+):
+    """
+    Registers a custom view function with a standard set of decorators.
+
+    This helper function simplifies creating custom endpoints by encapsulating
+    the common pattern of applying authentication, permissions, schema validation,
+    and transaction management decorators.
+
+    Args:
+        bp: The APIBlueprint to register the route on.
+        rule: The URL rule string.
+        view_func: The view function to decorate and register.
+        methods: A list of HTTP methods (e.g., ["GET", "POST"]).
+        input_schema: The Marshmallow schema for request validation.
+        output_schema: The Marshmallow schema for response formatting.
+        permission: The permission string required to access the endpoint.
+        auth_required: Whether JWT authentication is required. Defaults to True.
+        apply_unit_of_work: Whether to wrap the view in a database transaction.
+                              Defaults to False.
+        status_code: The HTTP status code for a successful response.
+        doc: A dictionary for additional OpenAPI documentation.
+    """
+    view = view_func
+
+    # Apply decorators in reverse order of execution.
+    # The last decorator applied is the first one to run.
+    if apply_unit_of_work:
+        view = unit_of_work(view)
+
+    if permission:
+        view = permission_required(permission)(view)
+
+    if auth_required:
+        view = jwt_required()(view)
+
+    doc_params = doc or {}
+    if auth_required and "security" not in doc_params:
+        doc_params["security"] = "bearerAuth"
+
+    # The apiflask decorators are applied last, so they run first.
+    final_view = bp.doc(**doc_params)(view)
+    if output_schema:
+        final_view = bp.output(output_schema, status_code=status_code)(final_view)
+    if input_schema:
+        # The location argument might be needed here if we support query args
+        final_view = bp.input(input_schema)(final_view)
+
+    bp.route(rule, methods=methods)(final_view)

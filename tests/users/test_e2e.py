@@ -17,7 +17,8 @@ def app():
     app.config["SERVER_NAME"] = "localhost"
 
     bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
-    DevKit(app, bp)
+    devkit = DevKit()
+    devkit.init_app(app, bp)
 
 
     with app.app_context():

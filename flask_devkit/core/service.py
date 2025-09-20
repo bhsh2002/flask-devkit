@@ -48,6 +48,7 @@ class BaseService(Generic[TModel]):
         repo_cls = repository_class or BaseRepository
         self.repo: TRepo = repo_cls(model=self.model, db_session=self._db_session)
 
+    # --- Write Hooks ---
     def pre_create_hook(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Optional hook to modify data before creating an entity."""
         return data
@@ -62,6 +63,24 @@ class BaseService(Generic[TModel]):
         """Optional hook to run checks before deleting an entity."""
         pass
 
+    # --- Read Hooks ---
+    def pre_get_hook(self, id_: Any, id_field: str) -> None:
+        """Optional hook to run logic before getting an entity."""
+        pass
+
+    def post_get_hook(self, entity: Optional[TModel]) -> Optional[TModel]:
+        """Optional hook to modify an entity after it's fetched."""
+        return entity
+
+    def pre_list_hook(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Optional hook to modify query parameters before listing entities."""
+        return params
+
+    def post_list_hook(self, result: PaginationResult[TModel]) -> PaginationResult[TModel]:
+        """Optional hook to modify the pagination result after fetching."""
+        return result
+
+    # --- Write Operations ---
     def create(self, data: Dict[str, Any]) -> TModel:
         """Creates a new entity after processing it through the pre-create hook."""
         processed_data = self.pre_create_hook(data)
@@ -96,18 +115,22 @@ class BaseService(Generic[TModel]):
         self.repo.delete(entity, soft=soft)
         return None
 
-    # The rest of the methods are read-only and can delegate directly to the repository
+    # --- Read Operations ---
     def get_by_id(
         self, id_: Any, include_soft_deleted: bool = False
     ) -> Optional[TModel]:
-        """Fetches a single record by its ID."""
-        return self.repo.get_by_id(id_, include_soft_deleted)
+        """Fetches a single record by its ID, with hooks."""
+        self.pre_get_hook(id_, "id")
+        entity = self.repo.get_by_id(id_, include_soft_deleted)
+        return self.post_get_hook(entity)
 
     def get_by_uuid(
         self, uuid_: str, include_soft_deleted: bool = False
     ) -> Optional[TModel]:
-        """Fetches a single record by its UUID."""
-        return self.repo.get_by_uuid(uuid_, include_soft_deleted)
+        """Fetches a single record by its UUID, with hooks."""
+        self.pre_get_hook(uuid_, "uuid")
+        entity = self.repo.get_by_uuid(uuid_, include_soft_deleted)
+        return self.post_get_hook(entity)
 
     def paginate(
         self,
@@ -117,7 +140,14 @@ class BaseService(Generic[TModel]):
         order_by: Optional[List[str]] = None,
         include_soft_deleted: bool = False,
     ) -> PaginationResult[TModel]:
-        """Fetches records with pagination."""
-        return self.repo.paginate(
-            page, per_page, filters, order_by, include_soft_deleted
-        )
+        """Fetches records with pagination, with hooks."""
+        params = {
+            "page": page,
+            "per_page": per_page,
+            "filters": filters,
+            "order_by": order_by,
+            "include_soft_deleted": include_soft_deleted,
+        }
+        processed_params = self.pre_list_hook(params)
+        result = self.repo.paginate(**processed_params)
+        return self.post_list_hook(result)
