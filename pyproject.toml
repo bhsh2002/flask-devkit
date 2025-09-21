@@ -45,6 +45,7 @@ ruff = "^0.5.7"
 black = "^24.8.0"
 mypy = "^1.11.2"
 pre-commit = "^3.8.0"
+python-dotenv = ">=1.0.0,<2.0.0"
 
 [tool.pytest.ini_options]
 addopts = "-q --cov=flask_devkit --cov-report=term-missing --cov-fail-under=80"
