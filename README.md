@@ -1,6 +1,6 @@
 # Flask-DevKit: The Extensible Flask API Toolkit
 
-`Flask-DevKit` is a powerful, unopinionated toolkit designed to accelerate the development of secure, scalable, and maintainable APIs with Flask. It provides a solid architectural foundation based on proven design patterns like Repository and Unit of Work, while offering complete flexibility to customize, replace, or extend any part of the system.
+`Flask-DevKit` is a powerful, unopinionated toolkit designed to accelerate the development of secure, scalable, and maintainable APIs with Flask. Thoroughly tested with **over 90% code coverage**, it provides a solid architectural foundation based on proven design patterns like Repository and Unit of Work, while offering complete flexibility to customize, replace, or extend any part of the system.
 
 Unlike rigid frameworks, DevKit is a collection of tools that you can adopt incrementally or use as a complete starting point. It comes with a default, full-featured authentication and RBAC module that can be used out-of-the-box, selectively enabled, or completely replaced with your own logic.
 
@@ -85,6 +85,62 @@ devkit.register_service("role", RoleService(...))
 devkit.register_service("permission", PermissionService(...))
 # ... register your own services
 devkit.init_app(app, bp=api_v1_bp)
+```
+
+### Core Mixins for Models
+
+To reduce boilerplate in your SQLAlchemy models, DevKit provides several reusable mixins from `flask_devkit.core.mixins`.
+
+-   `Timestamped`: Automatically adds `created_at` and `updated_at` columns to your model, which are managed by the database.
+
+```python
+# In your_app/models.py
+from flask_devkit.core.mixins import Timestamped
+from .database import db
+
+class MyModel(db.Model, Timestamped):
+    id = db.Column(db.Integer, primary_key=True)
+    # created_at and updated_at are now available on this model
+```
+
+---
+
+## Developer Workflow & CLI
+
+Beyond the code-level abstractions, DevKit provides a suite of tools to streamline the entire development lifecycle.
+
+### Database Migrations (Alembic)
+
+The library comes pre-configured with [Alembic](https://alembic.sqlalchemy.org/) to manage your database schema. After changing your SQLAlchemy models, you can generate and apply migrations with standard Alembic commands.
+
+```bash
+# 1. Generate a new migration script
+poetry run alembic revision --autogenerate -m "Add post model"
+
+# 2. Apply the migration to your database
+poetry run alembic upgrade head
+```
+
+### Command-Line Interface (CLI)
+
+DevKit includes a powerful CLI for common administrative tasks, built on top of Flask's native CLI. This is exposed via `flask_devkit.users.cli`.
+
+-   **Create Users:** `poetry run flask users create-user <email> --password <password> --is-superuser`
+-   **Manage Roles:** `poetry run flask users create-role <name>`
+-   **Assign Permissions:** `poetry run flask users grant-permission <role_name> <permission_name>`
+
+This allows you to manage your application from the terminal without needing a UI or direct database access.
+
+### Initial Data Bootstrapping
+
+The `flask_devkit.users.bootstrap` module can be used to seed your database with essential starting data, such as default roles ("admin", "editor") or a superuser account. This is critical for setting up new development or production environments quickly.
+
+```python
+# In your app's startup script
+from flask_devkit.users.bootstrap import bootstrap_roles
+
+with app.app_context():
+    bootstrap_roles()
 ```
 
 ---
