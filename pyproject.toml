@@ -48,6 +48,10 @@ pre-commit = "^3.8.0"
 
 [tool.pytest.ini_options]
 addopts = "-q --cov=flask_devkit --cov-report=term-missing --cov-fail-under=80"
+pythonpath = [
+  ".",
+  "example-project",
+]
 filterwarnings = [
   "ignore::DeprecationWarning",
 ]
