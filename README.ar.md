@@ -390,4 +390,74 @@ devkit.init_app(app, bp=api_v1_bp)
 
 # ستحتوي حمولة JWT الناتجة الآن على claim المخصص الخاص بك:
 # { ..., "roles": ["admin"], "tenant_id": "some-uuid", ... }
+
+### السيناريو 8: الحذف الناعم والاستعادة
+
+للتطبيقات التي تتطلب أن تكون البيانات قابلة للاسترداد، توفر DevKit آلية حذف ناعم قوية ومدمجة.
+
+#### 1. تفعيل الحذف الناعم على النموذج
+
+لجعل النموذج "قابلاً للحذف الناعم"، ما عليك سوى إضافة `SoftDeleteMixin` من `flask_devkit.core.mixins`. يضيف هذا عمود `deleted_at` من نوع timestamp قابل للقيم الفارغة.
+
+```python
+from flask_devkit.core.mixins import SoftDeleteMixin, Timestamped
+from .database import db
+
+class MyAuditableModel(db.Model, Timestamped, SoftDeleteMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    # ... أعمدة أخرى
+```
+
+#### 2. كيف يعمل
+
+بمجرد أن يستخدم النموذج `SoftDeleteMixin`، يغير `BaseService` و `BaseRepository` سلوكهما تلقائيًا:
+
+-   **`service.delete(id)`**: بدلاً من عبارة `DELETE`، يقوم هذا الآن بتنفيذ `UPDATE`، وتعيين الطابع الزمني لـ `deleted_at`. يعتبر العنصر الآن "محذوفًا ناعمًا".
+-   **عمليات القراءة**: ستستبعد جميع عمليات القراءة (`get_by_id`، `list`، إلخ) **تلقائيًا** العناصر المحذوفة ناعمًا من نتائجها.
+
+#### 3. الاستعلام عن العناصر المحذوفة ناعمًا
+
+لاسترداد قائمة بالعناصر التي تتضمن العناصر المحذوفة ناعمًا، استخدم معامل الاستعلام `include_soft_deleted` في أي نقطة نهاية قائمة.
+
+**URL:** `/api/v1/my-auditable-models?include_soft_deleted=true`
+
+#### 4. استعادة عنصر
+
+يمكنك استعادة عنصر محذوف ناعمًا باستخدام طبقة الخدمة، والتي تعيد حقل `deleted_at` الخاص به إلى `NULL`.
+
+```python
+# في كود التطبيق الخاص بك
+from ..services import my_auditable_model_service
+
+my_auditable_model_service.restore(item_id)
+```
+
+يمكنك أيضًا تمكين نقطة نهاية `/restore` عبر مساعدي التوجيه. هذه الميزة **معطلة بشكل افتراضي**.
+
+```python
+# في ملف المسارات الخاص بك
+from flask_devkit.helpers.routing import register_crud_routes
+
+crud_config = {
+    "restore": {"enabled": True, "permission": "restore:my_model"},
+}
+
+register_crud_routes(
+    bp=my_bp,
+    service=my_service,
+    schemas=my_schemas,
+    crud_config=crud_config,
+)
+```
+سيؤدي هذا إلى إنشاء نقطة نهاية `POST /my-auditable-models/<id>/restore`.
+
+#### 5. الحذف الدائم
+
+إذا كنت بحاجة إلى حذف سجل بشكل دائم، متجاوزًا آلية الحذف الناعم، فاستخدم دالة `force_delete`.
+
+```python
+# في كود التطبيق الخاص بك
+my_auditable_model_service.force_delete(item_id)
+```
+
 ```

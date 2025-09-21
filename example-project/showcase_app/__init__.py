@@ -1,4 +1,5 @@
 import os
+
 from apiflask import APIBlueprint, APIFlask
 from dotenv import load_dotenv
 
@@ -11,8 +12,9 @@ from showcase_app.repositories.user import CustomUserRepository
 def create_app(config_overrides=None):
     """App factory function."""
     # Manually load .env file to ensure it's available for all commands
-    # When running from the root, the cwd is the root, so we need to point to the example project's .env
-    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    # When running from the root, the cwd is the root,
+    # so we need to point to the example project's .env
+    dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
     load_dotenv(dotenv_path=dotenv_path)
 
     app = APIFlask(__name__, title="DevKit Showcase API")
@@ -31,6 +33,7 @@ def create_app(config_overrides=None):
     # --- Application-Specific Setup ---
     # Register our application's blueprints onto the main API blueprint first
     from .routes.post import posts_bp
+
     api_v1_bp.register_blueprint(posts_bp)
 
     # --- DevKit Setup ---
@@ -49,7 +52,7 @@ def create_app(config_overrides=None):
     user_routes_config = {
         "list": {"auth_required": False},
         "get": {"auth_required": False},
-        "delete": {"permission": "delete:user"}, # Keep delete protected
+        "delete": {"permission": "delete:user"},  # Keep delete protected
     }
     devkit.register_routes_config("user", user_routes_config)
 

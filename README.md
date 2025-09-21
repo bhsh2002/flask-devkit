@@ -407,3 +407,72 @@ devkit.init_app(app, bp=api_v1_bp)
 # The resulting JWT payload will now contain your custom claim:
 # { ..., "roles": ["admin"], "tenant_id": "some-uuid", ... }
 ```
+
+### Scenario 8: Soft Deleting & Restoration
+
+For applications requiring data to be recoverable, DevKit provides a powerful, built-in soft-delete mechanism.
+
+#### 1. Enabling Soft Deletes on a Model
+
+To make a model "soft-deletable," simply add the `SoftDeleteMixin` from `flask_devkit.core.mixins`. This adds a `deleted_at` nullable timestamp column.
+
+```python
+from flask_devkit.core.mixins import SoftDeleteMixin, Timestamped
+from .database import db
+
+class MyAuditableModel(db.Model, Timestamped, SoftDeleteMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    # ... other columns
+```
+
+#### 2. How It Works
+
+Once a model uses `SoftDeleteMixin`, the `BaseService` and `BaseRepository` automatically change their behavior:
+
+-   **`service.delete(id)`**: Instead of a `DELETE` statement, this now performs an `UPDATE`, setting the `deleted_at` timestamp. The item is now considered "soft-deleted".
+-   **Read Operations**: All read operations (`get_by_id`, `list`, etc.) will **automatically** exclude soft-deleted items from their results.
+
+#### 3. Querying for Soft-Deleted Items
+
+To retrieve a list of items that includes the soft-deleted ones, use the `include_soft_deleted` query parameter on any list endpoint.
+
+**URL:** `/api/v1/my-auditable-models?include_soft_deleted=true`
+
+#### 4. Restoring an Item
+
+You can restore a soft-deleted item using the service layer, which sets its `deleted_at` field back to `NULL`.
+
+```python
+# In your application code
+from ..services import my_auditable_model_service
+
+my_auditable_model_service.restore(item_id)
+```
+
+You can also enable a `/restore` endpoint via the routing helpers. This is **disabled by default**.
+
+```python
+# In your routes file
+from flask_devkit.helpers.routing import register_crud_routes
+
+crud_config = {
+    "restore": {"enabled": True, "permission": "restore:my_model"},
+}
+
+register_crud_routes(
+    bp=my_bp,
+    service=my_service,
+    schemas=my_schemas,
+    crud_config=crud_config,
+)
+```
+This will create a `POST /my-auditable-models/<id>/restore` endpoint.
+
+#### 5. Permanent Deletion
+
+If you need to permanently delete a record, bypassing the soft-delete mechanism, use the `force_delete` method.
+
+```python
+# In your application code
+my_auditable_model_service.force_delete(item_id)
+```
