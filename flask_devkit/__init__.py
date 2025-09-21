@@ -51,17 +51,24 @@ class DevKit:
             app.extensions = {}
         app.extensions["devkit"] = self
 
+        self._setup_app_config(app)
+
         if bp is None:
-            url_prefix = app.config.get("DEVKIT_URL_PREFIX", "/api/v1")
+            url_prefix = app.config.get("DEVKIT_URL_PREFIX")
             bp = APIBlueprint("api_v1", __name__, url_prefix=url_prefix)
 
-        self._setup_app_config(app)
         db.init_app(app)
         JWTManager(app)
 
         # If no services are manually registered, register the defaults
         if not self._services_manually_registered:
             self._register_default_services()
+
+        # Ensure loader is passed to user service, even if manually registered
+        user_service = self.get_service("user")
+        if user_service and self.additional_claims_loader:
+            if hasattr(user_service, "additional_claims_loader"):
+                user_service.additional_claims_loader = self.additional_claims_loader
 
         self._register_cli(app)
         self._register_blueprints(bp)
@@ -100,6 +107,8 @@ class DevKit:
 
     def _setup_app_config(self, app: APIFlask):
         """Sets up default security schemes and JWT config."""
+        app.config.setdefault("DEVKIT_URL_PREFIX", "/api/v1")
+
         security_schemes = {
             "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
         }
@@ -112,9 +121,20 @@ class DevKit:
         app.config.setdefault("JWT_TOKEN_LOCATION", ["headers"])
 
     def _register_cli(self, app: APIFlask):
-        """Register CLI commands if the user service is present."""
+        """Register CLI commands."""
+        from .users.cli import (
+            init_db_command,
+            truncate_db_command,
+            drop_db_command,
+        )
+
+        app.cli.add_command(init_db_command)
+        app.cli.add_command(truncate_db_command)
+        app.cli.add_command(drop_db_command)
+
         if self.get_service("user"):
             from .users.cli import main as seed_command
+
             app.cli.add_command(seed_command, "devkit-seed")
 
     def _register_blueprints(self, bp: APIBlueprint):

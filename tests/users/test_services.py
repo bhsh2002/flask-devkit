@@ -144,10 +144,10 @@ def test_assign_and_get_roles(app, db_session, user_service, role_permission_ser
         role = role_service.create({"name": "editor", "display_name": "Editor"})
         db_session.commit()
 
-        role_service.assign_role(user.uuid, role.id, assigner.id)
+        role_service.assign_role(user, role, assigner.id)
         db_session.commit()
 
-        user_roles = role_service.get_roles_for_user(user.uuid)
+        user_roles = role_service.get_roles_for_user(user)
         assert len(user_roles) == 1
         assert user_roles[0].name == "editor"
 

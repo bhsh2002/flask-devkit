@@ -39,8 +39,15 @@ def create_all_blueprints(bp: APIBlueprint):
         role_id = json_data["role_id"]
         claims = get_jwt()
         current_user_id = claims.get("user_id")
-        g.devkit.get_service("role").assign_role(
-            user_uuid=user_uuid, role_id=role_id, assigned_by_user_id=current_user_id
+
+        user_service = g.devkit.get_service("user")
+        role_service = g.devkit.get_service("role")
+
+        user = user_service.get_by_uuid(user_uuid)
+        role = role_service.get_by_id(role_id)
+
+        role_service.assign_role(
+            user=user, role=role, assigned_by_user_id=current_user_id
         )
         return {"message": "Role assigned successfully"}
 
@@ -50,7 +57,10 @@ def create_all_blueprints(bp: APIBlueprint):
     @jwt_required()
     @permission_required("read_roles:user")
     def list_user_roles(user_uuid):
-        return g.devkit.get_service("role").get_roles_for_user(user_uuid)
+        user_service = g.devkit.get_service("user")
+        role_service = g.devkit.get_service("role")
+        user = user_service.get_by_uuid(user_uuid)
+        return role_service.get_roles_for_user(user)
 
     @auth_bp.post("/login")
     @auth_bp.input(LoginSchema)
@@ -82,7 +92,9 @@ def create_all_blueprints(bp: APIBlueprint):
     @jwt_required(refresh=True)
     def refresh():
         user_uuid = get_jwt_identity()
-        new_access = g.devkit.get_service("user").generate_fresh_token_for_identity(user_uuid)
+        new_access = g.devkit.get_service("user").generate_fresh_token_for_identity(
+            user_uuid
+        )
         return {"access_token": new_access}
 
     @roles_bp.delete("/users/<string:user_uuid>")
@@ -94,7 +106,13 @@ def create_all_blueprints(bp: APIBlueprint):
     @unit_of_work
     def revoke_role(user_uuid, json_data):
         role_id = json_data["role_id"]
-        g.devkit.get_service("role").revoke_role(user_uuid=user_uuid, role_id=role_id)
+        user_service = g.devkit.get_service("user")
+        role_service = g.devkit.get_service("role")
+
+        user = user_service.get_by_uuid(user_uuid)
+        role = role_service.get_by_id(role_id)
+
+        role_service.revoke_role(user=user, role=role)
         return {"message": "Role revoked successfully"}
 
     @roles_bp.get("/<int:role_id>/permissions")

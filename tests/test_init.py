@@ -154,3 +154,31 @@ def test_devkit_no_modules_registered():
     assert devkit.get_service("user") is None
     assert devkit.get_service("role") is None
     assert devkit.get_service("permission") is None
+
+def test_devkit_applies_loader_to_manual_user_service(app):
+    """
+    Tests that the additional_claims_loader is applied to a manually
+    registered UserService instance.
+    """
+    # 1. Define a dummy loader
+    def my_loader(user):
+        return {"custom_claim": "is_present"}
+
+    # 2. Init DevKit with the loader
+    devkit = DevKit(additional_claims_loader=my_loader)
+
+    # 3. Manually create and register a real UserService
+    # We need an app context to get the db session
+    with app.app_context():
+        from flask_devkit.database import db
+
+        user_service = UserService(model=User, db_session=db.session)
+        devkit.register_service("user", user_service)
+
+    # 4. Init the app, which should apply the loader
+    devkit.init_app(app)
+
+    # 5. Assert that the loader was set on the manually registered service
+    manual_service = devkit.get_service("user")
+    assert manual_service.additional_claims_loader is not None
+    assert manual_service.additional_claims_loader == my_loader

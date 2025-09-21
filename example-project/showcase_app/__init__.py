@@ -34,28 +34,27 @@ def create_app(config_overrides=None):
     api_v1_bp.register_blueprint(posts_bp)
 
     # --- DevKit Setup ---
-    # 1. Instantiate DevKit
-    devkit = DevKit()
+    # 1. Define a loader to add custom data to JWTs
+    def add_custom_claims(user) -> dict:
+        # In a real app, you might load this from the user model
+        return {"username_initial": user.username[0].upper() if user.username else ""}
 
-    # 2. (Example) Register our custom repository for the user service.
+    # 2. Instantiate DevKit, passing the custom loader
+    devkit = DevKit(additional_claims_loader=add_custom_claims)
+
+    # 3. (Example) Register our custom repository for the user service.
     devkit.register_repository("user", CustomUserRepository)
 
-    # 3. (Example) Make the user list and detail routes public.
+    # 4. (Example) Make the user list and detail routes public.
     user_routes_config = {
         "list": {"auth_required": False},
         "get": {"auth_required": False},
+        "delete": {"permission": "delete:user"}, # Keep delete protected
     }
     devkit.register_routes_config("user", user_routes_config)
 
-    # 4. Initialize DevKit. It will add its own auth routes to our main blueprint
+    # 5. Initialize DevKit. It will add its own auth routes to our main blueprint
     #    and then register the main blueprint on the app.
     devkit.init_app(app, bp=api_v1_bp)
-
-    # --- CLI Commands ---
-    from . import cli
-
-    app.cli.add_command(cli.init_db_command)
-    app.cli.add_command(cli.truncate_db_command)
-    app.cli.add_command(cli.drop_db_command)
 
     return app

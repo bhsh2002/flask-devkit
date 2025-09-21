@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-09-20
+## [0.2.1] - 2025-09-21
+
+This release focuses on a comprehensive audit and stabilization of the library, improving code quality, fixing bugs, and enhancing developer ergonomics.
+
+### Added
+
+- **Core DB CLI Commands**: The database management commands (`devkit-init-db`, `devkit-truncate-db`, `devkit-drop-db`) have been moved from the example project into the core library, making them available to all users out-of-the-box.
+- **Test Coverage for CLI**: Added a comprehensive test suite for all database CLI commands to ensure their reliability.
+- **Test for Manual Service Loader**: Added a specific test to ensure the `additional_claims_loader` is correctly applied even when a `UserService` is registered manually.
+
+### Changed
+
+- **Refactored `RoleService`**: The `RoleService` no longer queries the database directly for `User` or `Role` objects. It now accepts pre-fetched model instances, improving decoupling and making the service layer more consistent.
+- **Centralized Config Defaults**: The default `DEVKIT_URL_PREFIX` is now set in a single, dedicated configuration setup function (`_setup_app_config`) for better maintainability.
+
+### Fixed
+
+- **Fixed Failing Test Suite**: Resolved all failing tests, including a critical issue in `test_cli_command` where a Flask app context was not being properly created.
+- **`additional_claims_loader` Bug**: Fixed a bug where the `additional_claims_loader` passed to `DevKit` was ignored if a `UserService` was registered manually.
+- **Improved `README.md`**: Updated the "Adding a Custom Service" example to be a complete, copy-paste-friendly guide.
+- **Multiple Syntax & Logic Errors**: Fixed several cascading bugs and syntax errors that were introduced and discovered during the refactoring process.
+
+## [0.2.0] - 2025-09-20]
 
 This release marks a major refactoring of the library to favor flexibility, extensibility, and developer experience over the previous hard-coded, batteries-included approach.
 

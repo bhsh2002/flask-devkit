@@ -3,7 +3,7 @@ from apiflask import APIBlueprint
 from flask_devkit.database import db
 from flask_devkit.helpers.routing import register_crud_routes, register_custom_route
 from showcase_app.models.post import Post
-from showcase_app.schemas.post import post_schemas, PostStatsSchema
+from showcase_app.schemas.post import post_schemas
 from showcase_app.services.post import PostService
 
 posts_bp = APIBlueprint("posts", __name__, url_prefix="/posts")
@@ -30,20 +30,19 @@ register_crud_routes(
 )
 
 
-# Example of a custom, non-CRUD route using the new helper
-def get_post_stats(**kwargs):
-    """A custom view function to get post statistics."""
-    # In a real app, you'd get this from the service layer
-    return {"total_posts": 150, "total_authors": 42}
+# Example of a custom, non-CRUD route to publish a post
+def publish_post_logic(post_uuid: str):
+    """The core logic for the publish endpoint."""
+    published_post = post_service.publish(post_uuid)
+    return published_post
 
 
 register_custom_route(
     bp=posts_bp,
-    rule="/meta/stats",
-    view_func=get_post_stats,
-    methods=["GET"],
-    output_schema=PostStatsSchema,
-    permission="read:post",  # Example permission
-    auth_required=True,
-    doc={"summary": "Get statistics about posts"},
+    view_func=publish_post_logic,
+    rule="/<string:post_uuid>/publish",
+    methods=["POST"],
+    permission="publish:post",
+    output_schema=post_schemas["main"],
+    doc={"summary": "Publish a post, making it publicly visible"},
 )

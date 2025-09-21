@@ -1,7 +1,8 @@
+from datetime import datetime
 from flask import current_app
 from flask_jwt_extended import get_jwt, get_jwt_identity
 
-from flask_devkit.core.exceptions import PermissionDeniedError
+from flask_devkit.core.exceptions import BusinessLogicError, PermissionDeniedError
 from flask_devkit.core.repository import PaginationResult
 from flask_devkit.core.service import BaseService
 from flask_devkit.users.models import User
@@ -32,7 +33,8 @@ class PostService(BaseService[Post]):
     def pre_create_hook(self, data):
         """Set the author_id from the current user's JWT identity."""
         user_uuid = get_jwt_identity()
-        user = self.repo.find_one_by({"uuid": user_uuid})
+        # In a real app, you might want to fetch the user object more robustly
+        user = self.repo._db_session.query(User).filter_by(uuid=user_uuid).first()
         if user:
             data["author_id"] = user.id
         return data
@@ -59,7 +61,25 @@ class PostService(BaseService[Post]):
         self._check_permission(instance, "update:post")
         super().pre_update_hook(instance, data)
 
-    def pre_delete_hook(self, instance):
-        """Check if the current user can delete the post."""
+    def pre_delete_hook(self, instance: Post):
+        """Check if the current user can delete the post and if it is published."""
+        if instance.is_published:
+            raise BusinessLogicError("Cannot delete a post that is already published.")
         self._check_permission(instance, "delete:post")
         super().pre_delete_hook(instance)
+
+    def publish(self, post_uuid: str) -> Post:
+        """Sets a post to published."""
+        post = self.repo.get_by_uuid(post_uuid)
+        if not post:
+            raise BusinessLogicError(f"Post with UUID {post_uuid} not found.")
+
+        self._check_permission(post, "publish:post")
+
+        if post.is_published:
+            return post  # Already published, do nothing
+
+        post.is_published = True
+        post.published_at = datetime.utcnow()
+        self.repo._db_session.add(post)
+        return post

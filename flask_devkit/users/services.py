@@ -141,42 +141,39 @@ class RoleService(BaseService[Role]):
             )
         super().pre_update_hook(instance, data)
 
-    def assign_role(self, user_uuid: str, role_id: int, assigned_by_user_id: int):
-        user = self._db_session.query(User).filter(User.uuid == user_uuid).first()
-        role = self.get_by_id(role_id)
-
+    def assign_role(self, user: User, role: Role, assigned_by_user_id: int):
         if not user:
-            raise NotFoundError("User", user_uuid)
+            raise NotFoundError("User", "N/A")
         if not role:
-            raise NotFoundError("Role", role_id)
+            raise NotFoundError("Role", "N/A")
 
         existing = (
             self._db_session.query(UserRoleAssociation)
-            .filter_by(user_id=user.id, role_id=role_id)
+            .filter_by(user_id=user.id, role_id=role.id)
             .first()
         )
         if existing:
             return
 
         association = UserRoleAssociation(
-            user_id=user.id, role_id=role_id, assigned_by_user_id=assigned_by_user_id
+            user_id=user.id, role_id=role.id, assigned_by_user_id=assigned_by_user_id
         )
         self._db_session.add(association)
 
-    def get_roles_for_user(self, user_uuid: str):
-        user = self._db_session.query(User).filter(User.uuid == user_uuid).first()
+    def get_roles_for_user(self, user: User):
         if not user:
-            raise NotFoundError("User", user_uuid)
+            raise NotFoundError("User", "N/A")
         return user.roles
 
-    def revoke_role(self, user_uuid: str, role_id: int):
-        user = self._db_session.query(User).filter(User.uuid == user_uuid).first()
+    def revoke_role(self, user: User, role: Role):
         if not user:
-            raise NotFoundError("User", user_uuid)
+            raise NotFoundError("User", "N/A")
+        if not role:
+            raise NotFoundError("Role", "N/A")
 
         assoc = (
             self._db_session.query(UserRoleAssociation)
-            .filter_by(user_id=user.id, role_id=role_id)
+            .filter_by(user_id=user.id, role_id=role.id)
             .first()
         )
         if assoc:
