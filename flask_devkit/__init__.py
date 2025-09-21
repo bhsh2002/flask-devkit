@@ -122,11 +122,7 @@ class DevKit:
 
     def _register_cli(self, app: APIFlask):
         """Register CLI commands."""
-        from .users.cli import (
-            init_db_command,
-            truncate_db_command,
-            drop_db_command,
-        )
+        from .core.cli import init_db_command, truncate_db_command, drop_db_command
 
         app.cli.add_command(init_db_command)
         app.cli.add_command(truncate_db_command)

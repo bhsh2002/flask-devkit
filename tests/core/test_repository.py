@@ -49,6 +49,39 @@ def test_soft_delete_logic(db_session, product_repo):
     assert product_repo.get_by_id(product_id, include_soft_deleted=True) is not None
 
 
+def test_restore_logic(db_session, product_repo):
+    product = product_repo.create({"name": "Keyboard", "price": 100.0})
+    db_session.commit()
+
+    # Soft delete it first
+    product_repo.delete(product, soft=True)
+    db_session.commit()
+    assert product.deleted_at is not None
+
+    # Now, restore it
+    product_repo.restore(product)
+    db_session.commit()
+
+    restored_product = product_repo.get_by_id(product.id)
+    assert restored_product is not None
+    assert restored_product.deleted_at is None
+
+
+def test_force_delete_logic(db_session, product_repo):
+    product = product_repo.create({"name": "Webcam", "price": 150.0})
+    db_session.commit()
+    product_id = product.id
+
+    # Force delete it
+    product_repo.force_delete(product)
+    db_session.commit()
+
+    # It should be gone, even when including soft-deleted
+    assert product_repo.get_by_id(product_id) is None
+    assert product_repo.get_by_id(product_id, include_soft_deleted=True) is None
+
+
+
 def test_pagination_and_filtering(db_session, product_repo):
     # Arrange
     product_repo.create({"name": "Book", "price": 20.0})

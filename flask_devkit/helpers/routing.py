@@ -87,6 +87,7 @@ def register_crud_routes(
         route_cfg = cfg.get("list", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission")
+        decorators = route_cfg.get("decorators")
 
         def list_items(query_data):
             """Retrieve a paginated list of items."""
@@ -109,6 +110,9 @@ def register_crud_routes(
             ), 200
 
         view = list_items
+        if decorators:
+            for decorator in reversed(decorators):
+                view = decorator(view)
         if permission:
             view = permission_required(permission)(view)
         if auth_required:
@@ -129,6 +133,7 @@ def register_crud_routes(
         route_cfg = cfg.get("get", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission")
+        decorators = route_cfg.get("decorators")
 
         def get_item(**kwargs):
             """Retrieve a single item by its ID or UUID."""
@@ -140,6 +145,9 @@ def register_crud_routes(
             return item
 
         view = get_item
+        if decorators:
+            for decorator in reversed(decorators):
+                view = decorator(view)
         if permission:
             view = permission_required(permission)(view)
         if auth_required:
@@ -158,12 +166,16 @@ def register_crud_routes(
         route_cfg = cfg.get("create", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission", f"create:{entity_name}")
+        decorators = route_cfg.get("decorators")
 
         def create_item(json_data):
             """Create a new item."""
             return service.create(json_data)
 
         view = unit_of_work(create_item)
+        if decorators:
+            for decorator in reversed(decorators):
+                view = decorator(view)
         if permission:
             view = permission_required(permission)(view)
         if auth_required:
@@ -184,6 +196,7 @@ def register_crud_routes(
         route_cfg = cfg.get("update", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission", f"update:{entity_name}")
+        decorators = route_cfg.get("decorators")
 
         def update_item(json_data, **kwargs):
             """Update a single item."""
@@ -191,6 +204,9 @@ def register_crud_routes(
             return service.update(item_id, json_data, id_field=id_field)
 
         view = unit_of_work(update_item)
+        if decorators:
+            for decorator in reversed(decorators):
+                view = decorator(view)
         if permission:
             view = permission_required(permission)(view)
         if auth_required:
@@ -201,7 +217,7 @@ def register_crud_routes(
             doc_params["security"] = "bearerAuth"
 
         bp.patch(f"/<{id_field}>")(
-            bp.input(update_schema)(bp.output(main_schema)(bp.doc(**doc_params)(view)))
+            bp.input(update_schema(partial=True))(bp.output(main_schema)(bp.doc(**doc_params)(view)))
         )
 
     # --- Route: Delete ---
@@ -209,6 +225,7 @@ def register_crud_routes(
         route_cfg = cfg.get("delete", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission", f"delete:{entity_name}")
+        decorators = route_cfg.get("decorators")
 
         def delete_item(**kwargs):
             """Delete a single item."""
@@ -217,6 +234,9 @@ def register_crud_routes(
             return {"message": f"{entity_name.capitalize()} deleted successfully."}
 
         view = unit_of_work(delete_item)
+        if decorators:
+            for decorator in reversed(decorators):
+                view = decorator(view)
         if permission:
             view = permission_required(permission)(view)
         if auth_required:
@@ -227,6 +247,57 @@ def register_crud_routes(
             doc_params["security"] = "bearerAuth"
 
         bp.delete(f"/<{id_field}>")(
+            bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
+        )
+
+    # --- Route: Restore ---
+    if cfg.get("restore", {}).get("enabled", False): # Disabled by default
+        route_cfg = cfg.get("restore", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission", f"restore:{entity_name}")
+
+        def restore_item(**kwargs):
+            """Restore a soft-deleted item."""
+            item_id = kwargs[id_field]
+            return service.restore(item_id, id_field=id_field)
+
+        view = unit_of_work(restore_item)
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"Restore a soft-deleted {entity_name}"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.post(f"/<{id_field}>/restore")(
+            bp.output(main_schema)(bp.doc(**doc_params)(view))
+        )
+
+    # --- Route: Force Delete ---
+    if cfg.get("force_delete", {}).get("enabled", False): # Disabled by default
+        route_cfg = cfg.get("force_delete", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission", f"force_delete:{entity_name}")
+
+        def force_delete_item(**kwargs):
+            """Permanently delete an item."""
+            item_id = kwargs[id_field]
+            service.force_delete(entity_id=item_id, id_field=id_field)
+            return {"message": f"{entity_name.capitalize()} permanently deleted."}
+
+        view = unit_of_work(force_delete_item)
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"Permanently delete an {entity_name}"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.delete(f"/<{id_field}>/force")(
             bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
         )
 
@@ -243,6 +314,7 @@ def register_custom_route(
     apply_unit_of_work: bool = False,
     status_code: int = 200,
     doc: Optional[Dict] = None,
+    decorators: Optional[List[Callable]] = None,
 ):
     """
     Registers a custom view function with a standard set of decorators.
@@ -264,10 +336,16 @@ def register_custom_route(
                               Defaults to False.
         status_code: The HTTP status code for a successful response.
         doc: A dictionary for additional OpenAPI documentation.
+        decorators: A list of custom decorators to apply to the view function.
     """
     view = view_func
 
-    # Apply decorators in reverse order of execution.
+    # Apply custom decorators first
+    if decorators:
+        for decorator in reversed(decorators):
+            view = decorator(view)
+
+    # Apply built-in decorators in reverse order of execution.
     # The last decorator applied is the first one to run.
     if apply_unit_of_work:
         view = unit_of_work(view)

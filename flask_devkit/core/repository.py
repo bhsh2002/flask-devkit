@@ -233,6 +233,19 @@ class BaseRepository(Generic[T]):
             self._db_session.delete(entity)
 
     @handle_db_errors
+    def force_delete(self, entity: T) -> None:
+        """Permanently deletes a model instance from the database."""
+        self._db_session.delete(entity)
+
+    @handle_db_errors
+    def restore(self, entity: T) -> None:
+        """Restores a soft-deleted model instance."""
+        if hasattr(entity, "deleted_at"):
+            entity.deleted_at = None
+            self._db_session.add(entity)
+
+
+    @handle_db_errors
     def paginate(
         self,
         page: int = 1,

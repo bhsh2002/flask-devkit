@@ -53,7 +53,8 @@ def test_cli_command(tmp_path):
 
 
 import os
-from flask_devkit.users.cli import (
+from flask_devkit.users.cli import main as cli_main
+from flask_devkit.core.cli import (
     init_db_command,
     truncate_db_command,
     drop_db_command,

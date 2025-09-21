@@ -115,6 +115,30 @@ class BaseService(Generic[TModel]):
         self.repo.delete(entity, soft=soft)
         return None
 
+    def restore(self, entity_id: Any, id_field: str = "id") -> TModel:
+        """Restores a soft-deleted entity."""
+        finder = getattr(self.repo, f"get_by_{id_field}", self.repo.get_by_id)
+        # We must include soft-deleted items to find the one to restore
+        entity = finder(entity_id, include_soft_deleted=True)
+
+        if not entity:
+            raise NotFoundError(entity_name=self.model.__name__, entity_id=entity_id)
+
+        self.repo.restore(entity)
+        return entity
+
+    def force_delete(self, entity_id: Any, id_field: str = "id") -> None:
+        """Permanently deletes an entity."""
+        finder = getattr(self.repo, f"get_by_{id_field}", self.repo.get_by_id)
+        # We can include soft-deleted items to allow force-deleting them
+        entity = finder(entity_id, include_soft_deleted=True)
+
+        if not entity:
+            raise NotFoundError(entity_name=self.model.__name__, entity_id=entity_id)
+
+        self.repo.force_delete(entity)
+        return None
+
     # --- Read Operations ---
     def get_by_id(
         self, id_: Any, include_soft_deleted: bool = False

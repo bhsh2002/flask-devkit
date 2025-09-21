@@ -70,6 +70,137 @@ devkit.init_app(app) # No blueprint needed if not using default routes
 # 4. Register your application's blueprint
 app.register_blueprint(posts_bp, url_prefix="/api/v1/posts")
 
+### Important Note on Standalone Usage
+
+As soon as you register even one service manually via `devkit.register_service()`, the automatic loading of the default modules (User, Role, Permission) is **disabled**. This is by design and allows you to use `flask-devkit`'s core features (like `BaseService`, `register_crud_routes`, etc.) for your own models without being tied to the built-in authentication system.
+
+If you want to use your own services **and** the default auth system, you must register the default services manually yourself before calling `init_app`.
+
+```python
+from flask_devkit.users.services import UserService, RoleService, PermissionService
+
+devkit = DevKit()
+devkit.register_service("user", UserService(...))
+devkit.register_service("role", RoleService(...))
+devkit.register_service("permission", PermissionService(...))
+# ... register your own services
+devkit.init_app(app, bp=api_v1_bp)
+```
+
+---
+
+## Advanced Usage
+
+### Adding Relationships to Default Models
+
+What if you want to link your own model back to a default DevKit model? For example, you have a `Post` model and you want to be able to access `user.posts`. 
+
+Because Python modules are singletons, you can import the `User` model from the library and attach a SQLAlchemy `relationship` to it *before* your app runs. This is a clean way to extend the default models without modifying the library's source code.
+
+The `example-project` does exactly this:
+
+```python
+# In your_app/models/post.py
+
+from sqlalchemy.orm import relationship
+from flask_devkit.database import db
+
+class Post(db.Model, ...):
+    # ... your columns
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    author = relationship("User", back_populates="posts")
+
+# --- The Magic --- #
+# Import the User model from the library
+from flask_devkit.users.models import User
+
+# Attach the new relationship to the User class
+User.posts = relationship("Post", back_populates="author", lazy="dynamic")
+```
+
+### Adding Fields to Default Models (The Profile Pattern)
+
+Directly modifying the tables of default models (e.g., adding a column to the `users` table) is not recommended, as it can lead to conflicts with future library updates. The recommended approach is to create a separate `Profile` model with a one-to-one relationship to the `User` model.
+
+This pattern is highly flexible and keeps your application-specific user data separate from the core authentication data.
+
+```python
+# In your_app/models/user_profile.py
+
+from sqlalchemy.orm import relationship
+from flask_devkit.database import db
+from flask_devkit.users.models import User
+
+class UserProfile(db.Model):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    
+    # Your custom fields
+    full_name = Column(String(100))
+    bio = Column(String(255))
+
+    # Create the one-to-one relationship
+    user = relationship("User", backref=backref("profile", uselist=False))
+
+# You can then access the profile via `user.profile`
+```
+
+---
+
+## Core Utilities & Decorators
+
+DevKit includes several helper decorators and functions to reduce boilerplate.
+
+### `@unit_of_work`
+
+This decorator, found in `flask_devkit.core.unit_of_work`, wraps a function in a database transaction. It automatically handles the session lifecycle for you:
+
+-   **On Success:** It commits the `db.session`.
+-   **On Exception:** It rolls back the `db.session`.
+
+It should be applied to any view function that performs database writes (create, update, delete).
+
+```python
+from flask_devkit.core.unit_of_work import unit_of_work
+
+@bp.post("/")
+@unit_of_work
+def create_item(json_data):
+    # ... your service logic that writes to the DB ...
+    return new_item
+```
+
+### `@log_activity`
+
+This decorator from `flask_devkit.helpers.decorators` provides basic logging for function calls. It logs the function name, arguments, and success or failure. For security, it automatically redacts any keyword argument containing the following substrings: `password`, `token`, `secret`, `key`, `authorization`, `bearer`.
+
+### `setup_rate_limiting`
+
+This helper function in `flask_devkit.helpers.decorators` initializes [Flask-Limiter](https://flask-limiter.readthedocs.io/) for your application with a sensible default rate.
+
+```python
+# In your app factory
+from flask_devkit.helpers.decorators import setup_rate_limiting
+
+def create_app():
+    app = Flask(__name__)
+    # ...
+    setup_rate_limiting(app, default_rate="60/minute")
+    return app
+```
+
+### Automatic Error Handling
+
+The `register_crud_routes` and `register_custom_route` helpers automatically register a set of error handlers on your blueprint. These handlers catch common exceptions and return structured JSON error responses with the correct HTTP status codes:
+
+-   `NotFoundError` -> `404 Not Found`
+-   `BusinessLogicError` / `PermissionDeniedError` -> `400 Bad Request` / `403 Forbidden`
+-   `ValidationError` (from Marshmallow) -> `422 Unprocessable Entity`
+-   `NoAuthorizationError` (from Flask-JWT-Extended) -> `401 Unauthorized`
+
+
 # --- In your services/post.py ---
 # from flask_devkit.core.service import BaseService
 # from ..database import db
