@@ -99,11 +99,11 @@ class TestBaseService:
 
     def test_get_by_id_delegates_to_repo(self, service, mock_repo):
         service.get_by_id(123)
-        mock_repo.get_by_id.assert_called_once_with(123, False)
+        mock_repo.get_by_id.assert_called_once_with(123, deleted_state="active")
 
     def test_paginate_delegates_to_repo(self, service, mock_repo):
         service.paginate(page=2, per_page=10)
-        mock_repo.paginate.assert_called_once_with(page=2, per_page=10, filters=None, order_by=None, include_soft_deleted=False)
+        mock_repo.paginate.assert_called_once_with(page=2, per_page=10, filters=None, order_by=None, deleted_state="active")
 
     def test_restore_fetches_soft_deleted_and_restores(self, service, mock_repo):
         mock_entity = MagicMock()
@@ -112,7 +112,7 @@ class TestBaseService:
         restored_entity = service.restore(1)
 
         # Verify it searched for the entity including soft-deleted ones
-        mock_repo.get_by_id.assert_called_once_with(1, include_soft_deleted=True)
+        mock_repo.get_by_id.assert_called_once_with(1, deleted_state="all")
         # Verify the repo's restore method was called
         mock_repo.restore.assert_called_once_with(mock_entity)
         assert restored_entity == mock_entity
@@ -124,7 +124,7 @@ class TestBaseService:
         service.force_delete(1)
 
         # Verify it searched for the entity including soft-deleted ones
-        mock_repo.get_by_id.assert_called_once_with(1, include_soft_deleted=True)
+        mock_repo.get_by_id.assert_called_once_with(1, deleted_state="all")
         # Verify the repo's force_delete method was called
         mock_repo.force_delete.assert_called_once_with(mock_entity)
 

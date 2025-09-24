@@ -16,10 +16,13 @@ def app():
     app.config["JWT_SECRET_KEY"] = "test-secret"
     app.config["SERVER_NAME"] = "localhost"
 
+    # Enable the 'list_deleted' route for the user entity for testing purposes
+    custom_config = {"list_deleted": {"enabled": True, "permission": "is_super_admin"}}
+
     bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
     devkit = DevKit()
+    devkit.register_routes_config("user", custom_config)
     devkit.init_app(app, bp)
-
 
     with app.app_context():
         Base.metadata.create_all(db.engine)
@@ -187,3 +190,38 @@ def test_system_role_protection(client):
     )
     assert patch_resp.status_code == 400  # BusinessLogicError
     assert patch_resp.get_json()["error_code"] == "BUSINESS_LOGIC_ERROR"
+
+
+def test_get_soft_deleted_users(client):
+    """Tests that the GET /users/deleted endpoint returns only soft-deleted users."""
+    with client.application.app_context():
+        # Arrange
+        active_user = User(username="active_user")
+        active_user.set_password("password")
+        deleted_user = User(username="deleted_user")
+        deleted_user.set_password("password")
+        admin_user = User(username="admin")
+        admin_user.set_password("password")
+        db.session.add_all([active_user, deleted_user, admin_user])
+        db.session.commit()
+
+        user_service = client.application.extensions["devkit"].get_service("user")
+        user_service.delete(deleted_user.uuid, id_field="uuid")
+        db.session.commit()
+
+        token = create_access_token(
+            identity=admin_user.uuid, additional_claims={"is_super_admin": True}
+        )
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Act
+    resp = client.get("/api/v1/users/deleted", headers=headers)
+
+    # Assert
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["pagination"]["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["username"] == "deleted_user"
+    assert data["items"][0]["deleted_at"] is not None

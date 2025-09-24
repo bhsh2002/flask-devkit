@@ -7,6 +7,7 @@ database operations (CRUD, pagination, filtering) for a given model.
 """
 
 import math
+import datetime
 from functools import wraps
 from typing import Any, Dict, Generic, List, NamedTuple, Optional, Type, TypeVar
 
@@ -15,6 +16,7 @@ from sqlalchemy import func, or_, inspect
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeMeta, Session, Query
 
+from flask_devkit.core.archive import ArchivedRecord
 from flask_devkit.core.exceptions import DatabaseError, DuplicateEntryError
 
 T = TypeVar("T", bound=DeclarativeMeta)
@@ -63,42 +65,25 @@ def handle_db_errors(func):
 class BaseRepository(Generic[T]):
     """
     Generic repository providing common CRUD operations for a SQLAlchemy model.
-
-    This repository is designed to be used within a Flask application context,
-    as it relies on `db.session` from Flask-SQLAlchemy and `current_app.logger`.
-
-    Transactions (commits) are not handled by the repository itself and should
-    be managed by the Service layer.
     """
 
     def __init__(self, model: Type[T], db_session: Session):
-        """
-        Initializes the repository with a specific SQLAlchemy model and session.
-
-        Args:
-            model: The SQLAlchemy model class.
-            db_session: The SQLAlchemy Session object.
-        """
         self.model = model
         self._db_session = db_session
 
     def _query(self):
-        """Returns a base query object for the repository's model."""
         return self._db_session.query(self.model)
 
-    def _filter_soft_deleted(self, query, include_soft_deleted: bool):
-        """Adds a filter to exclude or include soft-deleted records."""
-        if not include_soft_deleted and hasattr(self.model, "deleted_at"):
-            return query.filter(self.model.deleted_at.is_(None))
+    def _filter_soft_deleted(self, query, deleted_state: str = "active"):
+        """Adds a filter to handle soft-deleted records."""
+        if hasattr(self.model, "deleted_at"):
+            if deleted_state == "active":
+                return query.filter(self.model.deleted_at.is_(None))
+            elif deleted_state == "deleted_only":
+                return query.filter(self.model.deleted_at.is_not(None))
         return query
 
     def _apply_filters(self, query: Query, filters: Optional[Dict[str, str]]) -> Query:
-        """
-        Applies filters based on the new dictionary format.
-        - Parses 'op__value,op2__value2' strings.
-        - Conditions for the same field are combined with OR.
-        - Conditions for different fields are combined with AND.
-        """
         if not filters:
             return query
 
@@ -159,7 +144,6 @@ class BaseRepository(Generic[T]):
         return query
 
     def _apply_ordering(self, query, order_by: Optional[List[str]] = None):
-        """Applies sorting to the query based on a list of fields."""
         if order_by:
             for field in order_by:
                 if field.startswith("-"):
@@ -173,59 +157,34 @@ class BaseRepository(Generic[T]):
 
     @handle_db_errors
     def create(self, data: Dict[str, Any]) -> T:
-        """Creates a new model instance and flushes it to the session."""
         entity = self.model(**data)
         self._db_session.add(entity)
-        self._db_session.flush()  # Flush to trigger potential IntegrityError
+        self._db_session.flush()
         return entity
 
     @handle_db_errors
-    def get_by_id(self, id_: Any, include_soft_deleted: bool = False) -> Optional[T]:
-        """Fetches a single record by its primary key using `session.get()`."""
-        entity = self._db_session.get(self.model, id_)
-
-        if entity and not include_soft_deleted and hasattr(entity, "deleted_at"):
-            if getattr(entity, "deleted_at") is not None:
-                return None  # Treat as not found if soft-deleted
-
-        return entity
+    def get_by_id(self, id_: Any, deleted_state: str = "active") -> Optional[T]:
+        query = self._query().filter(self.model.id == id_)
+        query = self._filter_soft_deleted(query, deleted_state)
+        return query.first()
 
     @handle_db_errors
-    def get_by_uuid(self, uuid: str, include_soft_deleted: bool = False) -> Optional[T]:
-        """Fetches a single record by its UUID."""
+    def get_by_uuid(self, uuid: str, deleted_state: str = "active") -> Optional[T]:
         query = self._query().filter_by(uuid=uuid)
-        query = self._filter_soft_deleted(query, include_soft_deleted)
+        query = self._filter_soft_deleted(query, deleted_state)
         return query.first()
 
     @handle_db_errors
     def find_one_by(
-        self, filters: Dict[str, Any], include_soft_deleted: bool = False
+        self, filters: Dict[str, Any], deleted_state: str = "active"
     ) -> Optional[T]:
-        """
-        Finds a single record matching the given filters.
-
-        Args:
-            filters: A dictionary of filters to apply.
-            include_soft_deleted: Whether to include soft-deleted items.
-
-        Returns:
-            A single model instance or None.
-        """
         query = self._query()
-        query = self._filter_soft_deleted(query, include_soft_deleted)
+        query = self._filter_soft_deleted(query, deleted_state)
         query = self._apply_filters(query, filters)
         return query.first()
 
     @handle_db_errors
     def delete(self, entity: T, soft: bool = True) -> None:
-        """
-        Deletes a model instance.
-
-        Args:
-            entity: The model instance to delete.
-            soft: If True and the model has `deleted_at`, performs a soft delete.
-                  Otherwise, performs a hard delete.
-        """
         if soft and hasattr(entity, "deleted_at"):
             entity.deleted_at = func.now()
             self._db_session.add(entity)
@@ -234,16 +193,30 @@ class BaseRepository(Generic[T]):
 
     @handle_db_errors
     def force_delete(self, entity: T) -> None:
-        """Permanently deletes a model instance from the database."""
+        pk_name = inspect(entity.__class__).primary_key[0].name
+        pk_value = getattr(entity, pk_name)
+
+        data_to_archive = {
+            c.name: getattr(entity, c.name) for c in entity.__table__.columns
+        }
+
+        for key, value in data_to_archive.items():
+            if isinstance(value, datetime.datetime):
+                data_to_archive[key] = value.isoformat()
+
+        archived_record = ArchivedRecord(
+            original_table=entity.__table__.name,
+            original_pk=str(pk_value),
+            data=data_to_archive,
+        )
+        self._db_session.add(archived_record)
         self._db_session.delete(entity)
 
     @handle_db_errors
     def restore(self, entity: T) -> None:
-        """Restores a soft-deleted model instance."""
         if hasattr(entity, "deleted_at"):
             entity.deleted_at = None
             self._db_session.add(entity)
-
 
     @handle_db_errors
     def paginate(
@@ -252,28 +225,14 @@ class BaseRepository(Generic[T]):
         per_page: int = 20,
         filters: Optional[Dict[str, Any]] = None,
         order_by: Optional[List[str]] = None,
-        include_soft_deleted: bool = False,
+        deleted_state: str = "active",
     ) -> PaginationResult[T]:
-        """
-        Performs a paginated query.
-
-        Args:
-            page: The page number to retrieve.
-            per_page: The number of items per page.
-            filters: A dictionary of filters to apply to the query.
-            order_by: A list of fields to sort by.
-            include_soft_deleted: Whether to include soft-deleted items.
-
-        Returns:
-            A PaginationResult named tuple containing the items and pagination info.
-        """
         query = self._query()
-        query = self._filter_soft_deleted(query, include_soft_deleted)
+        query = self._filter_soft_deleted(query, deleted_state)
 
         filters_copy = filters.copy() if filters else {}
         query = self._apply_filters(query, filters_copy)
 
-        # Using a subquery for count for performance on complex queries
         pk_column = inspect(self.model).primary_key[0]
         count_query = query.with_entities(func.count(pk_column))
         total_count = count_query.scalar()

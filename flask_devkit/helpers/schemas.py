@@ -8,7 +8,7 @@ offering tools to auto-generate CRUD schemas from SQLAlchemy models.
 
 from apiflask import Schema
 from apiflask.fields import Boolean, DateTime, Integer, List, Nested, String
-from apiflask.validators import Range
+from apiflask.validators import Range, OneOf
 from marshmallow import ValidationError, pre_dump, validates_schema, INCLUDE
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
@@ -55,9 +55,12 @@ class BaseListQuerySchema(PaginationQuerySchema):
             " 'name' for ascending, '-created_at' for descending."
         },
     )
-    include_soft_deleted = Boolean(
-        load_default=False,
-        metadata={"description": "Include soft-deleted items in the results."},
+    deleted_state = String(
+        load_default="active",
+        validate=OneOf(["active", "all", "deleted_only"]),
+        metadata={
+            "description": "Control how to handle soft-deleted items: 'active' (default), 'all', or 'deleted_only'."
+        },
     )
 
 

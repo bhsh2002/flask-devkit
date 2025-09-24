@@ -95,19 +95,23 @@ def register_crud_routes(
             page = filters.pop("page", 1)
             per_page = filters.pop("per_page", 10)
             sort_by_str = filters.pop("sort_by", None)
+            deleted_state = filters.pop("deleted_state", "active")
             order_by = (
                 [s.strip() for s in sort_by_str.split(",") if s.strip()]
                 if sort_by_str
                 else None
             )
-            include_soft_deleted = filters.pop("include_soft_deleted", False)
-            return service.paginate(
-                page=page,
-                per_page=per_page,
-                filters=filters,
-                order_by=order_by,
-                include_soft_deleted=include_soft_deleted,
-            ), 200
+
+            return (
+                service.paginate(
+                    page=page,
+                    per_page=per_page,
+                    filters=filters,
+                    order_by=order_by,
+                    deleted_state=deleted_state,
+                ),
+                200,
+            )
 
         view = list_items
         if decorators:
@@ -123,6 +127,56 @@ def register_crud_routes(
             doc_params["security"] = "bearerAuth"
 
         bp.get("/")(
+            bp.input(query_schema, location="query")(
+                bp.output(pagination_out_schema)(bp.doc(**doc_params)(view))
+            )
+        )
+
+    # --- Route: List Deleted ---
+    if cfg.get("list_deleted", {}).get("enabled", False):
+        route_cfg = cfg.get("list_deleted", {})
+        auth_required = route_cfg.get("auth_required", True)
+        permission = route_cfg.get("permission", f"list_deleted:{entity_name}")
+        decorators = route_cfg.get("decorators")
+
+        def list_deleted_items(query_data):
+            """Retrieve a paginated list of soft-deleted items."""
+            filters = query_data.copy()
+            page = filters.pop("page", 1)
+            per_page = filters.pop("per_page", 10)
+            sort_by_str = filters.pop("sort_by", None)
+            order_by = (
+                [s.strip() for s in sort_by_str.split(",") if s.strip()]
+                if sort_by_str
+                else None
+            )
+            filters.pop("deleted_state", None)  # Remove to avoid conflict
+
+            return (
+                service.paginate(
+                    page=page,
+                    per_page=per_page,
+                    filters=filters,
+                    order_by=order_by,
+                    deleted_state="deleted_only",
+                ),
+                200,
+            )
+
+        view = list_deleted_items
+        if decorators:
+            for decorator in reversed(decorators):
+                view = decorator(view)
+        if permission:
+            view = permission_required(permission)(view)
+        if auth_required:
+            view = jwt_required()(view)
+
+        doc_params = {"summary": f"List all soft-deleted {entity_name}s"}
+        if auth_required:
+            doc_params["security"] = "bearerAuth"
+
+        bp.get("/deleted")(
             bp.input(query_schema, location="query")(
                 bp.output(pagination_out_schema)(bp.doc(**doc_params)(view))
             )

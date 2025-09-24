@@ -408,9 +408,9 @@ devkit.init_app(app, bp=api_v1_bp)
 # { ..., "roles": ["admin"], "tenant_id": "some-uuid", ... }
 ```
 
-### Scenario 8: Soft Deleting & Restoration
+### Scenario 8: Soft Deleting, Archiving & Restoration
 
-For applications requiring data to be recoverable, DevKit provides a powerful, built-in soft-delete mechanism.
+For applications requiring data to be recoverable, DevKit provides a powerful, built-in soft-delete and archiving mechanism.
 
 #### 1. Enabling Soft Deletes on a Model
 
@@ -434,9 +434,20 @@ Once a model uses `SoftDeleteMixin`, the `BaseService` and `BaseRepository` auto
 
 #### 3. Querying for Soft-Deleted Items
 
-To retrieve a list of items that includes the soft-deleted ones, use the `include_soft_deleted` query parameter on any list endpoint.
+You can control which items are returned in a list endpoint using the `deleted_state` query parameter.
 
-**URL:** `/api/v1/my-auditable-models?include_soft_deleted=true`
+-   **Active items (default)**: `/api/v1/my-models` or `/api/v1/my-models?deleted_state=active`
+-   **All items (active + deleted)**: `/api/v1/my-models?deleted_state=all`
+-   **Only deleted items**: Use the new dedicated endpoint: `/api/v1/my-models/deleted`
+
+This new endpoint can be enabled via the routing configuration:
+
+```python
+# In your routes file
+crud_config = {
+    "list_deleted": {"enabled": True, "permission": "view:deleted"},
+}
+```
 
 #### 4. Restoring an Item
 
@@ -463,14 +474,14 @@ register_crud_routes(
     bp=my_bp,
     service=my_service,
     schemas=my_schemas,
-    crud_config=crud_config,
+    routes_config=crud_config, # Corrected parameter name
 )
 ```
 This will create a `POST /my-auditable-models/<id>/restore` endpoint.
 
-#### 5. Permanent Deletion
+#### 5. Permanent Deletion & Archiving
 
-If you need to permanently delete a record, bypassing the soft-delete mechanism, use the `force_delete` method.
+If you need to permanently delete a record, use the `force_delete` method. Instead of being erased, the record's data will be serialized as JSON and moved to a central `archived_records` table for auditing purposes.
 
 ```python
 # In your application code

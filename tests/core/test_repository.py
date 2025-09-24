@@ -2,6 +2,7 @@
 import pytest
 from sqlalchemy import Column, Float, String
 
+from flask_devkit.core.archive import ArchivedRecord
 from flask_devkit.core.mixins import (
     IDMixin,
     SoftDeleteMixin,
@@ -46,7 +47,7 @@ def test_soft_delete_logic(db_session, product_repo):
     db_session.commit()
 
     assert product_repo.get_by_id(product_id) is None
-    assert product_repo.get_by_id(product_id, include_soft_deleted=True) is not None
+    assert product_repo.get_by_id(product_id, deleted_state="all") is not None
 
 
 def test_restore_logic(db_session, product_repo):
@@ -67,19 +68,39 @@ def test_restore_logic(db_session, product_repo):
     assert restored_product.deleted_at is None
 
 
-def test_force_delete_logic(db_session, product_repo):
-    product = product_repo.create({"name": "Webcam", "price": 150.0})
+def test_force_delete_archives_record(db_session, product_repo):
+    """
+    Tests if force_delete moves the record to the archive table.
+    """
+    # Arrange: Create the archive table for this test
+    ArchivedRecord.metadata.create_all(db_session.bind)
+
+    product = product_repo.create({"name": "Monitor", "price": 300.0})
     db_session.commit()
     product_id = product.id
+    product_uuid = product.uuid
+    product_name = product.name
 
-    # Force delete it
+    # Act: Force delete the product
     product_repo.force_delete(product)
     db_session.commit()
 
-    # It should be gone, even when including soft-deleted
-    assert product_repo.get_by_id(product_id) is None
-    assert product_repo.get_by_id(product_id, include_soft_deleted=True) is None
+    # Assert: Check that the original product is gone
+    assert product_repo.get_by_id(product_id, deleted_state="all") is None
 
+    # Assert: Check that the record was archived
+    archived_repo = BaseRepository(model=ArchivedRecord, db_session=db_session)
+    archived_records = archived_repo.paginate().items
+    assert len(archived_records) == 1
+
+    archived_record = archived_records[0]
+    assert archived_record.original_table == "products_test"
+    assert archived_record.original_pk == str(product_id)
+    assert archived_record.data["uuid"] == product_uuid
+    assert archived_record.data["name"] == product_name
+
+    # Clean up the archive table
+    ArchivedRecord.metadata.drop_all(db_session.bind)
 
 
 def test_pagination_and_filtering(db_session, product_repo):
@@ -96,3 +117,36 @@ def test_pagination_and_filtering(db_session, product_repo):
     assert result.total == 2
     assert len(result.items) == 2
     assert {item.name for item in result.items} == {"Book", "Notebook"}
+
+
+def test_pagination_with_deleted_states(db_session, product_repo):
+    """Tests pagination with different soft-delete states."""
+    # Arrange
+    p1 = product_repo.create({"name": "Active Product 1", "price": 10.0})
+    p2 = product_repo.create({"name": "Active Product 2", "price": 20.0})
+    p3 = product_repo.create({"name": "Deleted Product", "price": 30.0})
+    db_session.commit()
+    product_repo.delete(p3, soft=True)
+    db_session.commit()
+
+    # Act & Assert: Default (active)
+    active_result = product_repo.paginate()
+    assert active_result.total == 2
+    assert {item.name for item in active_result.items} == {
+        "Active Product 1",
+        "Active Product 2",
+    }
+
+    # Act & Assert: Deleted Only
+    deleted_result = product_repo.paginate(deleted_state="deleted_only")
+    assert deleted_result.total == 1
+    assert deleted_result.items[0].name == "Deleted Product"
+
+    # Act & Assert: All
+    all_result = product_repo.paginate(deleted_state="all")
+    assert all_result.total == 3
+    assert {item.name for item in all_result.items} == {
+        "Active Product 1",
+        "Active Product 2",
+        "Deleted Product",
+    }

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-09-24
+
+This release introduces a more robust data lifecycle management system, with data archiving and improved endpoints for handling soft-deleted records.
+
+### Added
+
+- **Permanent Deletion Archiving**: When an entity is permanently deleted via `force_delete`, its data is now serialized and moved to a new `archived_records` table instead of being permanently erased from the database. This provides an audit trail for hard deletions.
+- **List Soft-Deleted Endpoint**: A new `GET /<resource>/deleted` endpoint has been added to the `register_crud_routes` factory. This allows administrators to view only the items that have been soft-deleted.
+
+### Changed
+
+- **Refactored Soft-Delete Filtering**: The query parameter for controlling soft-delete behavior has been changed from the boolean `include_soft_deleted` to a more flexible `deleted_state` string, which can be `active` (default), `all`, or `deleted_only`. This change was made at the repository, service, and API layers.
+
 ## [0.2.1] - 2025-09-21
 
 This release focuses on a comprehensive audit and stabilization of the library, improving code quality, fixing bugs, and enhancing developer ergonomics.

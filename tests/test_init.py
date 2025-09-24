@@ -66,7 +66,7 @@ def test_devkit_default_service_with_custom_repo(app):
     """
     # 1. Define a custom repository that inherits from the base
     class CustomUserRepo(BaseRepository):
-        def get_by_id(self, id_, include_soft_deleted=False):
+        def get_by_id(self, id_, deleted_state="active"):
             # Override to return a specific known object for the test
             user = User(id=id_, username="custom_repo_user")
             return user

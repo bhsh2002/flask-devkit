@@ -9,6 +9,7 @@ from flask_devkit.core.service import BaseService
 from flask_devkit.database import db
 
 # Import default components that a user might want to use or extend
+from flask_devkit.core.archive import ArchivedRecord
 from flask_devkit.users.models import Permission, Role, User
 from flask_devkit.users.services import PermissionService, RoleService, UserService
 
