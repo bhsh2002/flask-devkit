@@ -61,6 +61,14 @@ class DevKit:
         db.init_app(app)
         JWTManager(app)
 
+        # Initialize audit logging
+        from flask_devkit import audit
+        audit.init_app(app)
+
+        # Initialize logging
+        from flask_devkit import logging
+        logging.init_app(app)
+
         # If no services are manually registered, register the defaults
         if not self._services_manually_registered:
             self._register_default_services()

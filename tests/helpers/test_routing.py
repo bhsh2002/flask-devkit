@@ -11,11 +11,10 @@ from flask_devkit.core.service import BaseService
 from flask_devkit.database import db
 from flask_devkit.helpers.routing import register_custom_route
 from flask_devkit.helpers.schemas import create_crud_schemas
-from tests.helpers import Base
 
 
 # 1. Define a test model and schemas
-class Widget(Base, IDMixin, UUIDMixin):
+class Widget(db.Model, IDMixin, UUIDMixin):
     __tablename__ = "widgets"
     name = Column(String(50), nullable=False)
 
@@ -24,7 +23,7 @@ widget_schemas = create_crud_schemas(Widget)
 
 
 @pytest.fixture
-def app(db_session):
+def app():
     app = APIFlask(__name__)
     app.config["TESTING"] = True
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
@@ -35,7 +34,7 @@ def app(db_session):
     devkit.init_app(app)
 
     # Manually initialize services for the test model
-    widget_service = BaseService(model=Widget, db_session=db_session)
+    widget_service = BaseService(model=Widget, db_session=db.session)
 
     # Register a new blueprint for the test model
     widget_bp = APIBlueprint("widgets", __name__, url_prefix="/widgets")
@@ -60,9 +59,9 @@ def app(db_session):
     app.register_blueprint(widget_bp)
 
     with app.app_context():
-        Base.metadata.create_all(db.engine)
+        db.create_all()
         yield app
-        Base.metadata.drop_all(db.engine)
+        db.drop_all()
 
 
 @pytest.fixture

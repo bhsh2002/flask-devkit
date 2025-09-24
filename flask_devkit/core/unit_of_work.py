@@ -2,8 +2,10 @@
 from functools import wraps
 
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
 
 from flask_devkit.database import db
+from flask_devkit.core.exceptions import DuplicateEntryError
 
 
 def unit_of_work(f):
@@ -19,6 +21,12 @@ def unit_of_work(f):
             result = f(*args, **kwargs)
             db.session.commit()
             return result
+        except IntegrityError as e:
+            db.session.rollback()
+            current_app.logger.warning(
+                f"Integrity error in {f.__name__}. Rolling back. Error: {e}"
+            )
+            raise DuplicateEntryError(original_exception=e) from e
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(

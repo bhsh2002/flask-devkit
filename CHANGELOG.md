@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-09-24
+
+This release introduces a comprehensive database and system event auditing and logging system, and includes a major refactoring of the test suite to improve stability and reliability.
+
+### Added
+
+- **Database Auditing**: A new `DevKitAuditLog` model and corresponding listeners automatically track `CREATE`, `UPDATE`, and `DELETE` operations on all models that use the `BaseRepository`.
+- **System Event Logging**: Key security and application events, such as successful/failed logins and unhandled exceptions, are now logged with detailed context.
+
+### Fixed
+
+- **Major Test Suite Refactoring**: Overhauled the entire test suite to fix numerous issues related to database session management and test isolation. This included:
+    - Changing the `app` fixture scope to `function` to ensure a clean database for each test.
+    - Removing all `db.session.commit()` calls from tests and fixtures, enforcing a transactional testing pattern.
+    - Fixing dozens of `no such table` and `AttributeError` errors caused by incorrect fixture setup and session handling.
+    - Creating local fixtures for tests with special application configurations to avoid polluting the global test setup.
+
 ## [0.2.2] - 2025-09-24
 
 This release introduces a more robust data lifecycle management system, with data archiving and improved endpoints for handling soft-deleted records.

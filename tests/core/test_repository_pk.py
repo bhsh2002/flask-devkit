@@ -10,20 +10,26 @@ class CustomPKWidget(Base):
     widget_id = Column(Integer, primary_key=True)
     name = Column(String(50), nullable=False)
 
+@pytest.fixture
+def custom_pk_repo(db_session):
+    Base.metadata.create_all(db_session.bind)
+    repo = BaseRepository(model=CustomPKWidget, db_session=db_session)
+    repo.create({"name": "Widget 1"})
+    repo.create({"name": "Widget 2"})
+    try:
+        yield repo
+    finally:
+        Base.metadata.drop_all(db_session.bind)
+
+
 # 2. Test that pagination works with the custom PK
-def test_paginate_with_custom_pk(db_session):
+def test_paginate_with_custom_pk(custom_pk_repo):
     """
     Tests that the repository's paginate method works correctly with a
     model that has a non-standard primary key name.
     """
-    # Arrange
-    repo = BaseRepository(model=CustomPKWidget, db_session=db_session)
-    db_session.add(CustomPKWidget(name="Widget 1"))
-    db_session.add(CustomPKWidget(name="Widget 2"))
-    db_session.commit()
-
     # Act
-    pagination_result = repo.paginate(page=1, per_page=5)
+    pagination_result = custom_pk_repo.paginate(page=1, per_page=5)
 
     # Assert
     assert pagination_result.total == 2

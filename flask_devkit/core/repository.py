@@ -42,15 +42,7 @@ def handle_db_errors(func):
         try:
             return func(self, *args, **kwargs)
         except IntegrityError as e:
-            current_app.logger.warning(
-                f"Integrity error in {func.__name__} for {self.model.__name__}: {e}",
-                exc_info=True,
-            )
-            self._db_session.rollback()
-            # Surface a friendlier duplicate entry error
-            raise DuplicateEntryError(
-                "Duplicate key or unique constraint violated."
-            ) from e
+            raise DuplicateEntryError(original_exception=e) from e
         except SQLAlchemyError as e:
             current_app.logger.error(
                 f"Database error in {func.__name__} for {self.model.__name__}: {e}",

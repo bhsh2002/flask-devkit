@@ -18,16 +18,33 @@ def app():
     bp = APIBlueprint("api_v1", __name__, url_prefix="/api/v1")
     DevKit(app, bp)
 
-
     with app.app_context():
-        Base.metadata.create_all(db.engine)
+        db.create_all()
         yield app
-        Base.metadata.drop_all(db.engine)
+        db.drop_all()
 
 
 @pytest.fixture
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture
+def db_session(app):
+    """
+    Provides a transactional database session for each test.                                                        │
+    Rolls back transactions automatically after each test.
+    """
+    with app.app_context():
+        connection = db.engine.connect()
+        transaction = connection.begin()
+        session = db.Session(bind=connection)
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 def auth_header(app, identity: str, perms: list[str] | None = None):
@@ -38,13 +55,13 @@ def auth_header(app, identity: str, perms: list[str] | None = None):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_assign_role_forbidden_without_permission(app, client):
+def test_assign_role_forbidden_without_permission(app, client, db_session):
     with client.application.app_context():
         user = User(username="nope")
         user.set_password("a_good_password123")
         role = Role(name="viewer", display_name="Viewer")
-        db.session.add_all([user, role])
-        db.session.commit()
+        db_session.add_all([user, role])
+        db_session.flush()
         user_uuid, role_id = str(user.uuid), role.id
 
     headers = auth_header(

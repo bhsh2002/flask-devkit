@@ -1,6 +1,6 @@
 # Flask-DevKit: The Extensible Flask API Toolkit
 
-`Flask-DevKit` is a powerful, unopinionated toolkit designed to accelerate the development of secure, scalable, and maintainable APIs with Flask. Thoroughly tested with **over 90% code coverage**, it provides a solid architectural foundation based on proven design patterns like Repository and Unit of Work, while offering complete flexibility to customize, replace, or extend any part of the system.
+`Flask-DevKit` is a powerful, unopinionated toolkit designed to accelerate the development of secure, scalable, and maintainable APIs with Flask. Thoroughly tested with **over 87% code coverage**, it provides a solid architectural foundation based on proven design patterns like Repository and Unit of Work, while offering complete flexibility to customize, replace, or extend any part of the system.
 
 Unlike rigid frameworks, DevKit is a collection of tools that you can adopt incrementally or use as a complete starting point. It comes with a default, full-featured authentication and RBAC module that can be used out-of-the-box, selectively enabled, or completely replaced with your own logic.
 
@@ -255,6 +255,30 @@ The `register_crud_routes` and `register_custom_route` helpers automatically reg
 -   `BusinessLogicError` / `PermissionDeniedError` -> `400 Bad Request` / `403 Forbidden`
 -   `ValidationError` (from Marshmallow) -> `422 Unprocessable Entity`
 -   `NoAuthorizationError` (from Flask-JWT-Extended) -> `401 Unauthorized`
+
+---
+
+## Auditing & Logging
+
+DevKit provides a powerful, automated system for auditing database changes and logging critical system events.
+
+### Database Auditing
+
+By simply using the `BaseRepository` for your models, all `CREATE`, `UPDATE`, and `DELETE` operations are automatically logged to the `devkit_audit_log` table. This provides a complete, immutable history of data changes, including:
+
+-   The user who performed the action (if authenticated).
+-   The name of the table and the primary key of the record that was changed.
+-   A JSON diff of the `old_values` and `new_values` for `UPDATE` operations.
+
+This feature requires no configuration and works out-of-the-box.
+
+### System Event Logging
+
+DevKit automatically logs key security and application events to the standard Flask logger, providing crucial context for debugging and monitoring:
+
+-   **Successful & Failed Logins**: `login_user` calls are logged with the username and outcome.
+-   **Unhandled Exceptions**: A centralized error handler logs the traceback of any unhandled exception before returning a `500 Internal Server Error` response.
+-   **Authorization Failures**: Missing or invalid JWTs are logged.
 
 
 # --- In your services/post.py ---

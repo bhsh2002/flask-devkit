@@ -139,14 +139,16 @@ class ServiceTestModel(Base, IDMixin):
 @pytest.fixture
 def test_service(db_session):
     Base.metadata.create_all(db_session.bind)
-    yield BaseService(model=ServiceTestModel, db_session=db_session)
-    Base.metadata.drop_all(db_session.bind)
+    service = BaseService(model=ServiceTestModel, db_session=db_session)
+    try:
+        yield service
+    finally:
+        Base.metadata.drop_all(db_session.bind)
 
 
 def test_create_persists_data(db_session, test_service):
     """Tests that the create method persists data."""
     created_entity = test_service.create({"name": "Bahaa"})
-    db_session.commit()
     assert created_entity.id is not None
 
     fetched_entity = (
@@ -166,7 +168,7 @@ def test_service_rolls_back_on_repo_error(db_session, test_service):
     # Arrange: Create an entity and commit it to start with a clean state.
     initial_entity = ServiceTestModel(name="Initial Name")
     db_session.add(initial_entity)
-    db_session.commit()
+    db_session.flush()
     entity_id = initial_entity.id
 
     # Re-fetch to ensure it's in a clean session state for the update

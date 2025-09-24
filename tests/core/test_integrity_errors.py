@@ -18,16 +18,27 @@ class UniqueEntity(Base):
 @pytest.fixture
 def integrity_repo(db_session):
     Base.metadata.create_all(db_session.bind)
-    yield BaseRepository(model=UniqueEntity, db_session=db_session)
-    Base.metadata.drop_all(db_session.bind)
+    repo = BaseRepository(model=UniqueEntity, db_session=db_session)
+    try:
+        yield repo
+    finally:
+        Base.metadata.drop_all(db_session.bind)
 
 
-def test_duplicate_entry_maps_to_custom_exception(integrity_repo, db_session):
-    app = APIFlask(__name__)
-    with app.app_context():
-        integrity_repo.create({"name": "A"})
-        db_session.commit()
+    def test_duplicate_entry_maps_to_custom_exception(integrity_repo):
+        app = APIFlask(__name__)
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        with app.app_context():        from flask_devkit.database import db
+        db.init_app(app)
+        from sqlalchemy.orm import sessionmaker
+        engine = db.engine
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        repo = BaseRepository(model=UniqueEntity, db_session=session)
+
+        repo.create({"name": "A"})
+        session.commit()
 
         with pytest.raises(DuplicateEntryError):
-            integrity_repo.create({"name": "A"})
-            db_session.flush()  # The decorator catches the error on flush/commit
+            repo.create({"name": "A"})
+            session.flush()

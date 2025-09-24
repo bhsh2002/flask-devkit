@@ -58,16 +58,24 @@ class UserService(BaseService[User]):
         user = self.repo.find_one_by({"username": username})
 
         if not user or not user.check_password(password):
+            current_app.logger.warning(f"Failed login attempt for username: {username}")
             raise AuthenticationError("Invalid credentials.")
         if not user.is_active:
+            current_app.logger.warning(
+                f"Inactive user login attempt: {username}"
+            )
             raise AuthenticationError("User account is not active.")
         if getattr(user, "deleted_at", None) is not None:
+            current_app.logger.warning(
+                f"Deleted user login attempt: {username}"
+            )
             raise AuthenticationError("User account has been deleted.")
 
         user.last_login_at = datetime.now()
         self._db_session.add(user)
 
         access_token, refresh_token = self.generate_tokens_for_user(user)
+        current_app.logger.info(f"User {username} logged in successfully.")
         return user, access_token, refresh_token
 
     def generate_tokens_for_user(self, user: User) -> Tuple[str, str]:

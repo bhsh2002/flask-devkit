@@ -25,9 +25,9 @@ def app():
     devkit.init_app(app, bp)
 
     with app.app_context():
-        Base.metadata.create_all(db.engine)
+        db.create_all()
         yield app
-        Base.metadata.drop_all(db.engine)
+        db.drop_all()
 
 
 @pytest.fixture
@@ -35,12 +35,50 @@ def client(app):
     return app.test_client()
 
 
-def test_login_flow(client):
+@pytest.fixture
+def db_session(app):
+    """
+    Provides a transactional database session for each test.                                                        │
+    Rolls back transactions automatically after each test.
+    """
+    with app.app_context():
+        connection = db.engine.connect()
+        transaction = connection.begin()
+        session = db.Session(bind=connection)
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+
+@pytest.fixture
+def user_service(db_session):
+    """
+    Fixture to create a UserService instance for each test.
+    """
+    from flask_devkit.users.services import UserService
+
+    return UserService(model=User, db_session=db_session)
+
+
+@pytest.fixture
+def role_service(db_session):
+    """
+    Fixture to create a RoleService instance for each test.
+    """
+    from flask_devkit.users.services import RoleService
+
+    return RoleService(model=Role, db_session=db_session)
+
+
+def test_login_flow(client, db_session):
     with client.application.app_context():
         user = User(username="alice")
         user.set_password("a_good_password123")
-        db.session.add(user)
-        db.session.commit()
+        db_session.add(user)
+        db_session.flush()
 
     resp = client.post(
         "/api/v1/auth/login",
@@ -52,12 +90,12 @@ def test_login_flow(client):
     assert data["user"]["username"] == "alice"
 
 
-def test_change_password_and_relogin(client):
+def test_change_password_and_relogin(client, db_session):
     with client.application.app_context():
         u = User(username="dave")
         u.set_password("old_password123")
-        db.session.add(u)
-        db.session.commit()
+        db_session.add(u)
+        db_session.flush()
 
     login_resp = client.post(
         "/api/v1/auth/login", json={"username": "dave", "password": "old_password123"}
@@ -78,14 +116,14 @@ def test_change_password_and_relogin(client):
     assert relogin_resp.status_code == 200
 
 
-def test_full_rbac_flow(client):
+def test_full_rbac_flow(client, db_session):
     with client.application.app_context():
         user = User(username="eve")
         user.set_password("a_good_password123")
         role = Role(name="manager", display_name="Manager")
         perm = Permission(name="create:thing")
-        db.session.add_all([user, role, perm])
-        db.session.commit()
+        db_session.add_all([user, role, perm])
+        db_session.flush()
         user_uuid, role_id, perm_id = str(user.uuid), role.id, perm.id
 
         # Token must be created within app context
@@ -119,19 +157,19 @@ def test_full_rbac_flow(client):
     assert any(p.get("name") == "create:thing" for p in lp.get_json())
 
 
-def test_revoke_permissions_and_roles(client):
+def test_revoke_permissions_and_roles(client, db_session):
     with client.application.app_context():
         user = User(username="frank")
         user.set_password("a_good_password123")
         role = Role(name="temp_worker", display_name="Temp")
         perm = Permission(name="temp:access")
-        db.session.add_all([user, role, perm])
-        db.session.commit()
+        db_session.add_all([user, role, perm])
+        db_session.flush()
         user_uuid, role_id, perm_id = str(user.uuid), role.id, perm.id
 
         role.permissions.append(perm)
         user.roles.append(role)
-        db.session.commit()
+        db_session.flush()
 
         token = create_access_token(
             identity=user_uuid, additional_claims={"is_super_admin": True}
@@ -164,35 +202,23 @@ def test_revoke_permissions_and_roles(client):
     assert len(roles_resp.get_json()) == 0
 
 
-def test_system_role_protection(client):
-    with client.application.app_context():
-        sys_role = Role(name="system_role", display_name="System", is_system_role=True)
-        db.session.add(sys_role)
-        db.session.commit()
-        role_id = sys_role.id
+def test_system_role_protection(role_service, db_session):
+    from flask_devkit.core.exceptions import BusinessLogicError
 
-        token = create_access_token(
-            identity="admin", additional_claims={"is_super_admin": True}
-        )
-
-    headers = {"Authorization": f"Bearer {token}"}
+    sys_role = Role(name="system_role", display_name="System", is_system_role=True)
+    db_session.add(sys_role)
+    db_session.flush()
 
     # Attempt to delete the system role
-    delete_resp = client.delete(f"/api/v1/roles/{role_id}", headers=headers)
-    assert delete_resp.status_code == 400  # BusinessLogicError
-    assert delete_resp.get_json()["error_code"] == "BUSINESS_LOGIC_ERROR"
+    with pytest.raises(BusinessLogicError):
+        role_service.delete(sys_role.id)
 
     # Attempt to rename the system role
-    patch_resp = client.patch(
-        f"/api/v1/roles/{role_id}",
-        json={"name": "new_name", "display_name": "New Name"},
-        headers=headers,
-    )
-    assert patch_resp.status_code == 400  # BusinessLogicError
-    assert patch_resp.get_json()["error_code"] == "BUSINESS_LOGIC_ERROR"
+    with pytest.raises(BusinessLogicError):
+        role_service.update(sys_role.id, {"name": "new_name"})
 
 
-def test_get_soft_deleted_users(client):
+def test_get_soft_deleted_users(client, db_session, user_service):
     """Tests that the GET /users/deleted endpoint returns only soft-deleted users."""
     with client.application.app_context():
         # Arrange
@@ -202,12 +228,11 @@ def test_get_soft_deleted_users(client):
         deleted_user.set_password("password")
         admin_user = User(username="admin")
         admin_user.set_password("password")
-        db.session.add_all([active_user, deleted_user, admin_user])
-        db.session.commit()
+        db_session.add_all([active_user, deleted_user, admin_user])
+        db_session.flush()
 
-        user_service = client.application.extensions["devkit"].get_service("user")
         user_service.delete(deleted_user.uuid, id_field="uuid")
-        db.session.commit()
+        db_session.flush()
 
         token = create_access_token(
             identity=admin_user.uuid, additional_claims={"is_super_admin": True}

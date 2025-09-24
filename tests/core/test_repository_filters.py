@@ -23,9 +23,10 @@ def filter_repo(db_session):
     repo.create({"name": "banana", "value": 20, "price": 2.0})
     repo.create({"name": "orange", "value": 20, "price": 2.5})
     repo.create({"name": "pear", "value": 30, "price": 3.0})
-    db_session.commit()
-    yield repo
-    Base.metadata.drop_all(db_session.bind)
+    try:
+        yield repo
+    finally:
+        Base.metadata.drop_all(db_session.bind)
 
 
 def test_filter_eq(filter_repo):

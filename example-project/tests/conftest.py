@@ -1,25 +1,44 @@
+# example-project/tests/conftest.py
 import pytest
 from showcase_app import create_app
+from flask_devkit.database import db as _db
 
-from flask_devkit.database import db
 
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def app():
-    app = create_app(
-        {
+    """Session-wide test Flask application."""
+    _app = create_app(
+        config_overrides={
             "TESTING": True,
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "JWT_SECRET_KEY": "test-secret",
+            "SERVER_NAME": "localhost.localdomain",
         }
     )
-
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.drop_all()
+    with _app.app_context():
+        _db.create_all()
+        yield _app
+        _db.drop_all()
 
 
 @pytest.fixture
 def client(app):
+    """A test client for the app."""
     return app.test_client()
+
+
+@pytest.fixture
+def db_session(app):
+    """
+    Provides a transactional database session for each test.
+    Rolls back transactions automatically after each test.
+    """
+    with app.app_context():
+        connection = _db.engine.connect()
+        transaction = connection.begin()
+        session = _db.Session(bind=connection)
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()

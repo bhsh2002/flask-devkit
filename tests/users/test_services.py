@@ -122,7 +122,7 @@ def role_permission_services(app, db_session):
     with app.app_context():
         from flask_devkit.users.models import Base
 
-        Base.metadata.create_all(db_session.bind)
+    
         yield (
             RoleService(model=Role, db_session=db_session),
             PermissionService(model=Permission, db_session=db_session),

@@ -6,6 +6,7 @@ Provides a powerful factory function to auto-generate CRUD REST endpoints.
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from apiflask import APIBlueprint
+from flask import current_app
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 
@@ -27,16 +28,22 @@ def register_error_handlers(bp: APIBlueprint):
 
     @bp.errorhandler(NotFoundError)
     def handle_not_found(error):
+        current_app.logger.info(f"Resource not found: {error.message}")
         return error.to_dict(), 404
 
     @bp.errorhandler(AppBaseException)
     def handle_app_exception(error):
+        current_app.logger.warning(
+            f"Application exception: {error.message} (Code: {error.error_code})",
+            exc_info=True,
+        )
         return error.to_dict(), error.status_code
 
     if NoAuthorizationError is not None:
 
         @bp.errorhandler(NoAuthorizationError)
         def handle_no_auth_error(error):
+            current_app.logger.warning("Authorization missing for a request.")
             return {
                 "message": "Missing authorization",
                 "error_code": "AUTH_REQUIRED",
@@ -46,6 +53,7 @@ def register_error_handlers(bp: APIBlueprint):
 
         @bp.errorhandler(CSRFError)
         def handle_csrf_error(error):
+            current_app.logger.warning("CSRF validation failed for a request.")
             return {
                 "message": "CSRF validation failed",
                 "error_code": "CSRF_FAILED",
@@ -53,7 +61,16 @@ def register_error_handlers(bp: APIBlueprint):
 
     @bp.errorhandler(ValidationError)
     def handle_validation_error(error):
+        current_app.logger.info(f"Validation failed for request: {error.messages}")
         return {"message": "Validation failed", "errors": error.messages}, 422
+
+    @bp.errorhandler(Exception)
+    def handle_general_error(error):
+        current_app.logger.critical("An unhandled exception occurred", exc_info=True)
+        return {
+            "message": "An internal server error occurred.",
+            "error_code": "INTERNAL_SERVER_ERROR",
+        }, 500
 
 
 def register_crud_routes(

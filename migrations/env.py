@@ -7,8 +7,13 @@ from sqlalchemy import pool
 from alembic import context
 # add your model's MetaData object here
 # for 'autogenerate' support
-from flask_devkit.users.models import Base as UsersBase
-target_metadata = UsersBase.metadata
+from flask_devkit.database import db
+# Import all models here so Alembic can see them
+from flask_devkit.users import models
+from flask_devkit.core import archive
+from flask_devkit.audit import models
+
+target_metadata = db.metadata
 
 # this is the Alembic Config object, which provides
 # access to values within the .ini file in use.
