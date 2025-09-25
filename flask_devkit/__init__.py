@@ -1,15 +1,13 @@
 # flask_devkit/__init__.py
-from typing import Callable, Optional, Dict, Any, Type
+from typing import Callable, Dict, Optional, Type
 
 from apiflask import APIBlueprint, APIFlask
 from flask_jwt_extended import JWTManager
 
+# Import default components that a user might want to use or extend
 from flask_devkit.core.repository import BaseRepository
 from flask_devkit.core.service import BaseService
 from flask_devkit.database import db
-
-# Import default components that a user might want to use or extend
-from flask_devkit.core.archive import ArchivedRecord
 from flask_devkit.users.models import Permission, Role, User
 from flask_devkit.users.services import PermissionService, RoleService, UserService
 
@@ -63,10 +61,12 @@ class DevKit:
 
         # Initialize audit logging
         from flask_devkit import audit
+
         audit.init_app(app)
 
         # Initialize logging
         from flask_devkit import logging
+
         logging.init_app(app)
 
         # If no services are manually registered, register the defaults
@@ -131,7 +131,7 @@ class DevKit:
 
     def _register_cli(self, app: APIFlask):
         """Register CLI commands."""
-        from .core.cli import init_db_command, truncate_db_command, drop_db_command
+        from .core.cli import drop_db_command, init_db_command, truncate_db_command
 
         app.cli.add_command(init_db_command)
         app.cli.add_command(truncate_db_command)

@@ -8,9 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, Type
 from apiflask import APIBlueprint
 from flask import current_app
 from flask_jwt_extended import jwt_required
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from marshmallow import ValidationError
 from werkzeug.exceptions import HTTPException
-from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from flask_devkit.core.exceptions import AppBaseException, NotFoundError
 
@@ -204,7 +204,7 @@ def register_crud_routes(
         )
 
     # --- Route: List Deleted ---
-    if cfg.get("list_deleted", {}).get("enabled", False):
+    if cfg.get("list_deleted", {}).get("enabled", True):
         route_cfg = cfg.get("list_deleted", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission", f"list_deleted:{entity_name}")
@@ -282,9 +282,7 @@ def register_crud_routes(
         if auth_required:
             doc_params["security"] = "bearerAuth"
 
-        bp.get(f"/<{id_field}>")(
-            bp.output(main_schema)(bp.doc(**doc_params)(view))
-        )
+        bp.get(f"/<{id_field}>")(bp.output(main_schema)(bp.doc(**doc_params)(view)))
 
     # --- Route: Create ---
     if cfg.get("create", {}).get("enabled", True):
@@ -342,7 +340,9 @@ def register_crud_routes(
             doc_params["security"] = "bearerAuth"
 
         bp.patch(f"/<{id_field}>")(
-            bp.input(update_schema(partial=True))(bp.output(main_schema)(bp.doc(**doc_params)(view)))
+            bp.input(update_schema(partial=True))(
+                bp.output(main_schema)(bp.doc(**doc_params)(view))
+            )
         )
 
     # --- Route: Delete ---
@@ -376,7 +376,7 @@ def register_crud_routes(
         )
 
     # --- Route: Restore ---
-    if cfg.get("restore", {}).get("enabled", False): # Disabled by default
+    if cfg.get("restore", {}).get("enabled", True):  # Disabled by default
         route_cfg = cfg.get("restore", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission", f"restore:{entity_name}")
@@ -401,7 +401,7 @@ def register_crud_routes(
         )
 
     # --- Route: Force Delete ---
-    if cfg.get("force_delete", {}).get("enabled", False): # Disabled by default
+    if cfg.get("force_delete", {}).get("enabled", True):  # Disabled by default
         route_cfg = cfg.get("force_delete", {})
         auth_required = route_cfg.get("auth_required", True)
         permission = route_cfg.get("permission", f"force_delete:{entity_name}")
@@ -425,6 +425,7 @@ def register_crud_routes(
         bp.delete(f"/<{id_field}>/force")(
             bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
         )
+
 
 def register_custom_route(
     bp: APIBlueprint,
