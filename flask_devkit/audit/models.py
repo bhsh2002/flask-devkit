@@ -32,7 +32,7 @@ class AuditLog(db.Model):
     )
     action: Mapped[str] = mapped_column(String(10), nullable=False, index=True)  # CREATE, UPDATE, DELETE
     table_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    record_pk: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    record_pk: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     old_values: Mapped[dict] = mapped_column(JSON, nullable=True)
     new_values: Mapped[dict] = mapped_column(JSON, nullable=True)
 

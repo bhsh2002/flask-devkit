@@ -47,7 +47,7 @@ def init_app(self, app: APIFlask, bp: Optional[APIBlueprint] = None):
 # my_project/app.py
 
 from apiflask import APIFlask
-from .extensions import devkit, db # افترض أنك عرفتهم في ملف منفصل
+from .extensions import devkit # افترض أنك عرفتهم في ملف منفصل
 
 def create_app():
     app = APIFlask(__name__)
@@ -56,7 +56,6 @@ def create_app():
     app.config.from_object("my_project.config.DevelopmentConfig")
 
     # تهيئة الامتدادات
-    db.init_app(app)
     devkit.init_app(app)
 
     return app
@@ -66,9 +65,7 @@ def create_app():
 # my_project/extensions.py
 
 from flask_devkit import DevKit
-from flask_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
 devkit = DevKit()
 ```
 

@@ -9,6 +9,7 @@ from apiflask import APIBlueprint
 from flask import current_app
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
+from werkzeug.exceptions import HTTPException
 
 from flask_devkit.core.exceptions import AppBaseException, NotFoundError
 
@@ -63,6 +64,15 @@ def register_error_handlers(bp: APIBlueprint):
     def handle_validation_error(error):
         current_app.logger.info(f"Validation failed for request: {error.messages}")
         return {"message": "Validation failed", "errors": error.messages}, 422
+
+    @bp.errorhandler(HTTPException)
+    def handle_http_exception(error):
+        """Handles Werkzeug HTTP exceptions."""
+        current_app.logger.info(
+            f"HTTP exception: {error.code} {error.name} - {error.description}"
+        )
+        error_code = error.name.replace(" ", "_").upper()
+        return {"message": error.description, "error_code": error_code}, error.code
 
     @bp.errorhandler(Exception)
     def handle_general_error(error):
