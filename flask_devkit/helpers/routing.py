@@ -10,6 +10,7 @@ from flask import current_app
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 from werkzeug.exceptions import HTTPException
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from flask_devkit.core.exceptions import AppBaseException, NotFoundError
 
@@ -39,6 +40,22 @@ def register_error_handlers(bp: APIBlueprint):
             exc_info=True,
         )
         return error.to_dict(), error.status_code
+
+    @bp.errorhandler(ExpiredSignatureError)
+    def handle_expired_token_error(error):
+        current_app.logger.info("Request with expired token.")
+        return {
+            "message": "Token has expired.",
+            "error_code": "TOKEN_EXPIRED",
+        }, 401
+
+    @bp.errorhandler(InvalidTokenError)
+    def handle_invalid_token_error(error):
+        current_app.logger.info(f"Request with invalid token: {error}")
+        return {
+            "message": "Invalid token.",
+            "error_code": "INVALID_TOKEN",
+        }, 401
 
     if NoAuthorizationError is not None:
 

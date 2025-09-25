@@ -193,9 +193,10 @@ class PermissionService(BaseService[Permission]):
         super().__init__(
             model, db_session, repository_class=repository_class
         )
+        self.role_repo = BaseRepository(Role, self._db_session)
 
     def assign_permission_to_role(self, role_id: int, permission_id: int):
-        role = self._db_session.get(Role, role_id)
+        role = self.role_repo.get_by_id(role_id)
         perm = self.get_by_id(permission_id)
         if not role:
             raise NotFoundError("Role", role_id)
@@ -207,7 +208,7 @@ class PermissionService(BaseService[Permission]):
             self._db_session.add(role)
 
     def revoke_permission_from_role(self, role_id: int, permission_id: int):
-        role = self._db_session.get(Role, role_id)
+        role = self.role_repo.get_by_id(role_id)
         perm = self.get_by_id(permission_id)
         if not role:
             raise NotFoundError("Role", role_id)
@@ -219,7 +220,7 @@ class PermissionService(BaseService[Permission]):
             self._db_session.add(role)
 
     def list_role_permissions(self, role_id: int):
-        role = self._db_session.get(Role, role_id)
+        role = self.role_repo.get_by_id(role_id)
         if not role:
             raise NotFoundError("Role", role_id)
         return role.permissions

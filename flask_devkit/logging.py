@@ -18,8 +18,9 @@ def init_app(app: Flask):
         if not os.path.exists('logs'):
             try:
                 os.mkdir('logs')
-            except OSError:
-                pass  # Avoid race conditions
+            except OSError as e:
+                app.logger.error(f"Failed to create logs directory: {e}")
+                return
         
         file_handler = RotatingFileHandler('logs/server.log', maxBytes=10240, backupCount=10)
         file_handler.setFormatter(formatter)

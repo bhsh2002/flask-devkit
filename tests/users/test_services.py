@@ -122,7 +122,6 @@ def role_permission_services(app, db_session):
     with app.app_context():
         from flask_devkit.users.models import Base
 
-    
         yield (
             RoleService(model=Role, db_session=db_session),
             PermissionService(model=Permission, db_session=db_session),
@@ -165,3 +164,25 @@ def test_change_password_schema_loads():
 
     data = {"current_password": "p", "new_password": "p2"}
     assert ChangePasswordSchema().load(data)
+
+
+def test_permission_service_db_error_handling(app, role_permission_services):
+    """Tests that PermissionService correctly handles DB errors when fetching a role."""
+    from unittest.mock import patch
+    from sqlalchemy.exc import SQLAlchemyError
+    from sqlalchemy.orm import Query
+    from flask_devkit.core.exceptions import DatabaseError
+
+    with app.app_context():
+        _, permission_service = role_permission_services
+
+        # Patch the internal query execution to simulate a DB error, keeping the decorator active
+        with patch.object(
+            Query, "first", side_effect=SQLAlchemyError("DB is down")
+        ) as mock_first:
+            with pytest.raises(DatabaseError):
+                # This call will use the repo, which calls .first() internally
+                permission_service.assign_permission_to_role(role_id=1, permission_id=1)
+
+            # The mock should be called once for the role before the exception is raised
+            assert mock_first.call_count == 1

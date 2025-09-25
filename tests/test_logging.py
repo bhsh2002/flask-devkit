@@ -43,3 +43,20 @@ def test_error_logging(client, caplog, admin_auth_headers):
         response = client.get("/api/v1/users/")
         assert response.status_code == 401
         assert "Authorization missing for a request" in caplog.text
+
+
+def test_init_app_logs_error_on_mkdir_failure(app, caplog):
+    """Test that an OSError during log directory creation is logged."""
+    import os
+    from unittest.mock import patch
+    from flask_devkit import logging
+
+    app.debug = False
+    app.testing = False
+
+    with patch("os.path.exists", return_value=False):
+        with patch("os.mkdir", side_effect=OSError("Permission denied")):
+            with caplog.at_level("ERROR"):
+                logging.init_app(app)
+                assert "Failed to create logs directory" in caplog.text
+

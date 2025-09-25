@@ -233,3 +233,18 @@ def test_custom_route_with_multiple_schemas(app, client, auth_headers):
     # 4. Assert the response is correct
     assert response.status_code == 200
     assert response.json == {"param": "from_query", "data": "from_body"}
+
+
+def test_expired_token_returns_401(app, client):
+    """Tests that a request with an expired token returns a 401 error."""
+    from datetime import timedelta
+    with app.app_context():
+        expired_token = create_access_token(
+            identity="test-user", expires_delta=timedelta(seconds=-10)
+        )
+    
+    headers = {"Authorization": f"Bearer {expired_token}"}
+    response = client.get("/widgets/", headers=headers)
+
+    assert response.status_code == 401
+    assert response.json["error_code"] == "TOKEN_EXPIRED"

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2025-09-25
+
+### Fixed
+
+- **JWT Exception Handling**: Added error handlers for `ExpiredSignatureError` and `InvalidTokenError` to ensure that JWT-related exceptions return a `401 Unauthorized` response with a clear error message, instead of causing a generic `500 Internal Server Error`.
+- **Repository Error Handling**: Refactored `PermissionService` to use the repository pattern for fetching `Role` entities. This ensures that all database operations are consistently wrapped by the `handle_db_errors` decorator, preventing potential unhandled `SQLAlchemyError` exceptions.
+- **Logging Directory Creation**: The `logging.init_app` function no longer fails silently if it lacks permissions to create the `logs` directory. It now logs an explicit error message and returns, preventing a subsequent `FileNotFoundError` crash when the `RotatingFileHandler` is initialized.
+
 ## [0.2.3] - 2025-09-24
 
 This release introduces a comprehensive database and system event auditing and logging system, and includes a major refactoring of the test suite to improve stability and reliability.
@@ -35,7 +43,7 @@ This release introduces a more robust data lifecycle management system, with dat
 
 - **Refactored Soft-Delete Filtering**: The query parameter for controlling soft-delete behavior has been changed from the boolean `include_soft_deleted` to a more flexible `deleted_state` string, which can be `active` (default), `all`, or `deleted_only`. This change was made at the repository, service, and API layers.
 
-## [0.2.1] - 2025-09-21
+## [02.1] - 2025-09-21
 
 This release focuses on a comprehensive audit and stabilization of the library, improving code quality, fixing bugs, and enhancing developer ergonomics.
 
