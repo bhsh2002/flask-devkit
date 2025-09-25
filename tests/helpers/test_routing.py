@@ -4,6 +4,8 @@ from unittest.mock import patch, MagicMock
 from apiflask import APIBlueprint, APIFlask
 from flask_jwt_extended import create_access_token
 from sqlalchemy import Column, String
+from apiflask.fields import String as StringField
+from apiflask import Schema
 
 from flask_devkit import DevKit
 from flask_devkit.core.mixins import IDMixin, UUIDMixin
@@ -185,3 +187,49 @@ def test_register_custom_route_applies_decorators():
 
         # Assert that the final decorated view was registered with the blueprint
         bp.route.assert_called_once_with("/custom", methods=["POST"])
+
+
+class QuerySchema(Schema):
+    param = StringField(required=True)
+
+class BodySchema(Schema):
+    data = StringField(required=True)
+
+class OutputSchema(Schema):
+    param = StringField()
+    data = StringField()
+
+def test_custom_route_with_multiple_schemas(app, client, auth_headers):
+    custom_bp = APIBlueprint("custom", __name__, url_prefix="/custom")
+
+    # 1. Define a simple view function without decorators
+    def multi_input_view(query_args, body_args):
+        """A view that takes input from query and body."""
+        return {"param": query_args["param"], "data": body_args["data"]}
+
+    # 2. Use the helper to register the route
+    register_custom_route(
+        bp=custom_bp,
+        rule="/multi-registered",
+        view_func=multi_input_view,
+        methods=["POST"],
+        auth_required=False, # Simplified for this test
+        input_schemas=[
+            {"schema": QuerySchema, "location": "query", "arg_name": "query_args"},
+            {"schema": BodySchema, "location": "json", "arg_name": "body_args"},
+        ],
+        output_schema=OutputSchema,
+    )
+
+    app.register_blueprint(custom_bp)
+
+    # 3. Make a request to the registered route
+    response = client.post(
+        "/custom/multi-registered?param=from_query",
+        json={"data": "from_body"},
+        headers=auth_headers,
+    )
+
+    # 4. Assert the response is correct
+    assert response.status_code == 200
+    assert response.json == {"param": "from_query", "data": "from_body"}

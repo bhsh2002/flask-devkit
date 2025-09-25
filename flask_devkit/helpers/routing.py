@@ -378,7 +378,7 @@ def register_custom_route(
     view_func: Callable,
     methods: List[str],
     *,
-    input_schema: Optional[Type] = None,
+    input_schemas: Optional[List[Dict[str, Any]]] = None,
     output_schema: Optional[Type] = None,
     permission: Optional[str] = None,
     auth_required: bool = True,
@@ -390,16 +390,17 @@ def register_custom_route(
     """
     Registers a custom view function with a standard set of decorators.
 
-    This helper function simplifies creating custom endpoints by encapsulating
-    the common pattern of applying authentication, permissions, schema validation,
-    and transaction management decorators.
+    This helper simplifies creating custom endpoints by encapsulating common
+    patterns like auth, permissions, schema validation, and transactions.
 
     Args:
         bp: The APIBlueprint to register the route on.
         rule: The URL rule string.
         view_func: The view function to decorate and register.
         methods: A list of HTTP methods (e.g., ["GET", "POST"]).
-        input_schema: The Marshmallow schema for request validation.
+        input_schemas: A list of dictionaries for request validation, where
+                       each dict contains a 'schema' (Marshmallow schema) and
+                       'location' (e.g., 'json', 'query').
         output_schema: The Marshmallow schema for response formatting.
         permission: The permission string required to access the endpoint.
         auth_required: Whether JWT authentication is required. Defaults to True.
@@ -416,14 +417,11 @@ def register_custom_route(
         for decorator in reversed(decorators):
             view = decorator(view)
 
-    # Apply built-in decorators in reverse order of execution.
-    # The last decorator applied is the first one to run.
+    # Apply built-in decorators in reverse order of execution
     if apply_unit_of_work:
         view = unit_of_work(view)
-
     if permission:
         view = permission_required(permission)(view)
-
     if auth_required:
         view = jwt_required()(view)
 
@@ -431,12 +429,19 @@ def register_custom_route(
     if auth_required and "security" not in doc_params:
         doc_params["security"] = "bearerAuth"
 
-    # The apiflask decorators are applied last, so they run first.
+    # Apply apiflask decorators last, so they run first
     final_view = bp.doc(**doc_params)(view)
     if output_schema:
         final_view = bp.output(output_schema, status_code=status_code)(final_view)
-    if input_schema:
-        # The location argument might be needed here if we support query args
-        final_view = bp.input(input_schema)(final_view)
+
+    # Apply input decorators for all specified schemas
+    if input_schemas:
+        for input_spec in reversed(input_schemas):
+            schema = input_spec["schema"]
+            location = input_spec["location"]
+            arg_name = input_spec.get("arg_name")
+            final_view = bp.input(schema, location=location, arg_name=arg_name)(
+                final_view
+            )
 
     bp.route(rule, methods=methods)(final_view)

@@ -16,7 +16,10 @@
 - `rule`: مسار الـ URL (e.g., `"/documents/<int:doc_id>/approve"`).
 - `view_func`: دالة بايثون الفعلية التي تحتوي على منطق المسار.
 - `methods`: قائمة بأساليب HTTP المدعومة (e.g., `["POST"]`).
-- `input_schema` (اختياري): الـ `Schema` للتحقق من صحة جسم الطلب (request body).
+- `input_schemas` (اختياري): **قائمة** من القواميس للتحقق من صحة المدخلات. كل قاموس يجب أن يحتوي على:
+    - `schema`: فئة الـ `Schema`.
+    - `location`: موقع البيانات (e.g., `'json'`, `'query'`, `'form'`).
+    - `arg_name` (اختياري): اسم المتغير الذي سيتم تمريره إلى دالة العرض.
 - `output_schema` (اختياري): الـ `Schema` لتنسيق جسم الاستجابة (response body).
 - `permission` (اختياري): الصلاحية المطلوبة للوصول إلى نقطة النهاية.
 - `auth_required` (اختياري): `True` (افتراضي) لطلب المصادقة عبر JWT.
@@ -25,67 +28,91 @@
 - `doc` (اختياري): قاموس لتمرير معلومات إضافية إلى وثائق OpenAPI (e.g., `{"summary": "..."}`).
 - `decorators` (اختياري): قائمة بأي مُزينات مخصصة إضافية تريد تطبيقها.
 
-## مثال عملي: الموافقة على مستند
+## مثال 1: إجراء بسيط (الموافقة على مستند)
 
-لنفترض أن لدينا نموذج `Document` ونريد إنشاء نقطة نهاية `POST /documents/<int:doc_id>/approve` للموافقة عليه.
+لنفترض أن لدينا نقطة نهاية `POST /documents/<int:doc_id>/approve`.
 
 1.  **اكتب دالة العرض (View Function):**
-    هذه هي دالة بايثون البسيطة التي تحتوي على منطق العمل الأساسي.
-
-    ```python
-    # services.py
-    class DocumentService(BaseService[Document]):
-        def approve(self, doc_id: int, approver: User, comments: str):
-            doc = self.get_by_id(doc_id)
-            if not doc:
-                raise NotFoundError("Document", doc_id)
-            if doc.status == "APPROVED":
-                raise BusinessLogicError("Document is already approved.")
-
-            doc.status = "APPROVED"
-            doc.approved_by = approver
-            doc.approval_comments = comments
-            # ... المزيد من المنطق
-            return doc
-    ```
 
     ```python
     # routes.py
-
-    # دالة العرض التي سيتم تسجيلها
     def approve_document_view(doc_id: int, json_data: dict):
-        """
-        تستدعي الخدمة للموافقة على المستند.
-        """
-        document_service = g.devkit.get_service("document")
-        current_user = g.devkit.get_service("user").get_by_uuid(get_jwt_identity())
+        # ... منطق العمل هنا ...
         comments = json_data.get("comments")
-
+        # ...
         return document_service.approve(doc_id, current_user, comments)
     ```
 
-2.  **سجل المسار باستخدام `register_custom_route`:**
-    الآن، بدلاً من تزيين `approve_document_view` يدويًا، نستخدم الدالة المساعدة.
+2.  **سجل المسار:**
 
     ```python
     # routes.py (تكملة)
-
-    from flask_devkit.helpers.routing import register_custom_route
-    from .schemas import ApprovalSchema, DocumentSchema # افترض وجود هذه الـ Schemas
-
-    # ...
     register_custom_route(
         bp=documents_bp,
         rule="/<int:doc_id>/approve",
         view_func=approve_document_view,
         methods=["POST"],
-        input_schema=ApprovalSchema,
+        input_schemas=[{"schema": ApprovalSchema, "location": "json"}], # لاحظ أنها قائمة
         output_schema=DocumentSchema,
         auth_required=True,
         permission="approve:document",
-        apply_unit_of_work=True, # مهم، لأننا نُجري تحديثًا
+        apply_unit_of_work=True,
         status_code=200,
         doc={"summary": "Approve a document"}
+    )
+    ```
+
+## مثال 2: مدخلات من مصادر متعددة
+
+لنفترض أنك تريد إنشاء نقطة نهاية تقبل معلمات تصفية من الـ `query string` وبيانات للتحديث من الـ `request body`.
+
+1.  **اكتب دالة العرض:**
+    يجب أن تقبل الدالة وسيطتين، واحدة لكل `input_schema`.
+
+    ```python
+    # routes.py
+    def bulk_update_view(query_params: dict, body_data: dict):
+        """
+        تحديث السجلات بناءً على معايير التصفية.
+        """
+        category = query_params.get("category")
+        new_status = body_data.get("status")
+        
+        # ... منطق العمل لتحديث السجلات في هذه الفئة ...
+        
+        return {"message": f"Records in category {category} updated to {new_status}."}
+    ```
+
+2.  **عرف الـ Schemas:**
+
+    ```python
+    # schemas.py
+    class FilterSchema(Schema):
+        category = String(required=True)
+
+    class UpdateStatusSchema(Schema):
+        status = String(required=True)
+    ```
+
+3.  **سجل المسار:**
+    مرر قائمة من القواميس إلى `input_schemas`، مع تحديد `arg_name` لكل واحدة.
+
+    ```python
+    # routes.py (تكملة)
+    register_custom_route(
+        bp=my_bp,
+        rule="/bulk-update",
+        view_func=bulk_update_view,
+        methods=["PATCH"],
+        input_schemas=[
+            {"schema": FilterSchema, "location": "query", "arg_name": "query_params"},
+            {"schema": UpdateStatusSchema, "location": "json", "arg_name": "body_data"},
+        ],
+        output_schema=MessageSchema,
+        auth_required=True,
+        permission="bulk:update",
+        apply_unit_of_work=True,
+        doc={"summary": "Bulk update records based on a filter"}
     )
     ```
 
