@@ -82,7 +82,7 @@ def seed_default_auth(
     session.flush()
 
     admin_role = _get_or_create_role(
-        session, name="admin", display_name="Administrator", is_system_role=True
+        session, name="admin", display_name="مدير", is_system_role=True
     )
 
     current_perm_names = {p.name for p in (admin_role.permissions or [])}
