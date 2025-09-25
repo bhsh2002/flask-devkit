@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2025-09-25
+
+This release focuses on hardening the library against edge cases and unhandled exceptions.
+
+### Added
+
+- **Expanded JWT Exception Handling**: Added specific error handlers for `FreshTokenRequired` and `RevokedTokenError` to provide clear `401` responses in these scenarios, preventing potential `500` errors.
+
+### Changed
+
+- **Robust Logging Directory Creation**: Replaced the log directory creation logic with the idempotent `os.makedirs('logs', exist_ok=True)`. This prevents race condition errors that could occur in multi-process environments.
+
 ## [0.2.4] - 2025-09-25
 
 ### Fixed

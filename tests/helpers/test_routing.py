@@ -235,6 +235,35 @@ def test_custom_route_with_multiple_schemas(app, client, auth_headers):
     assert response.json == {"param": "from_query", "data": "from_body"}
 
 
+def test_fresh_token_required_returns_401(app, client):
+    """Tests that a request to a fresh-token-required endpoint with a non-fresh token returns 401."""
+    from flask_jwt_extended import jwt_required, create_access_token
+    from apiflask import APIBlueprint
+    from flask_devkit.helpers.routing import register_error_handlers
+
+    # Create a dedicated blueprint for this test to ensure error handlers are registered
+    test_bp = APIBlueprint("fresh_test", __name__, url_prefix="/fresh-test")
+    register_error_handlers(test_bp) # Apply the handlers we want to test
+
+    @test_bp.route("/protected")
+    @jwt_required(fresh=True)
+    def fresh_protected_route():
+        return {"message": "success"}
+
+    app.register_blueprint(test_bp)
+
+    with app.app_context():
+        # Create a non-fresh access token
+        non_fresh_token = create_access_token(identity="test-user", fresh=False)
+    
+    headers = {"Authorization": f"Bearer {non_fresh_token}"}
+    response = client.get("/fresh-test/protected", headers=headers)
+
+    assert response.status_code == 401
+    assert response.json["error_code"] == "FRESH_TOKEN_REQUIRED"
+
+
+
 def test_expired_token_returns_401(app, client):
     """Tests that a request with an expired token returns a 401 error."""
     from datetime import timedelta

@@ -15,12 +15,12 @@ def init_app(app: Flask):
 
     # Add a file handler for when not in debug mode
     if not app.debug and not app.testing:
-        if not os.path.exists('logs'):
-            try:
-                os.mkdir('logs')
-            except OSError as e:
-                app.logger.error(f"Failed to create logs directory: {e}")
-                return
+        try:
+            # Use makedirs with exist_ok=True to be idempotent and avoid race conditions
+            os.makedirs('logs', exist_ok=True)
+        except OSError as e:
+            app.logger.error(f"Failed to create logs directory: {e}")
+            return
         
         file_handler = RotatingFileHandler('logs/server.log', maxBytes=10240, backupCount=10)
         file_handler.setFormatter(formatter)

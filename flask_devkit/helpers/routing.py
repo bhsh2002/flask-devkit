@@ -15,10 +15,17 @@ from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from flask_devkit.core.exceptions import AppBaseException, NotFoundError
 
 try:
-    from flask_jwt_extended.exceptions import CSRFError, NoAuthorizationError
+    from flask_jwt_extended.exceptions import (
+        CSRFError,
+        FreshTokenRequired,
+        NoAuthorizationError,
+        RevokedTokenError,
+    )
 except ImportError:
     NoAuthorizationError = None
     CSRFError = None
+    FreshTokenRequired = None
+    RevokedTokenError = None
 from flask_devkit.auth.decorators import permission_required
 from flask_devkit.core.service import BaseService
 from flask_devkit.core.unit_of_work import unit_of_work
@@ -75,6 +82,26 @@ def register_error_handlers(bp: APIBlueprint):
             return {
                 "message": "CSRF validation failed",
                 "error_code": "CSRF_FAILED",
+            }, 401
+
+    if FreshTokenRequired is not None:
+
+        @bp.errorhandler(FreshTokenRequired)
+        def handle_fresh_token_required(error):
+            current_app.logger.info("Request requires a fresh token.")
+            return {
+                "message": "Fresh token required.",
+                "error_code": "FRESH_TOKEN_REQUIRED",
+            }, 401
+
+    if RevokedTokenError is not None:
+
+        @bp.errorhandler(RevokedTokenError)
+        def handle_revoked_token(error):
+            current_app.logger.warning("Attempt to use a revoked token.")
+            return {
+                "message": "Token has been revoked.",
+                "error_code": "TOKEN_REVOKED",
             }, 401
 
     @bp.errorhandler(ValidationError)

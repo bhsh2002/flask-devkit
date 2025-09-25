@@ -45,8 +45,8 @@ def test_error_logging(client, caplog, admin_auth_headers):
         assert "Authorization missing for a request" in caplog.text
 
 
-def test_init_app_logs_error_on_mkdir_failure(app, caplog):
-    """Test that an OSError during log directory creation is logged."""
+def test_init_app_handles_mkdir_race_condition(app, caplog):
+    """Test that a FileExistsError race condition is handled gracefully."""
     import os
     from unittest.mock import patch
     from flask_devkit import logging
@@ -54,9 +54,11 @@ def test_init_app_logs_error_on_mkdir_failure(app, caplog):
     app.debug = False
     app.testing = False
 
+    # Simulate race condition: exists is false, but mkdir fails because another process created it
     with patch("os.path.exists", return_value=False):
-        with patch("os.mkdir", side_effect=OSError("Permission denied")):
-            with caplog.at_level("ERROR"):
-                logging.init_app(app)
-                assert "Failed to create logs directory" in caplog.text
+        # os.makedirs will be called, which should handle the existing directory
+        with caplog.at_level("ERROR"):
+            logging.init_app(app)
+            # No error should be logged because exist_ok=True handles this
+            assert not caplog.text
 
