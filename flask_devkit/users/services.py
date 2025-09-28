@@ -24,9 +24,7 @@ class UserService(BaseService[User]):
         repository_class: Type[BaseRepository] = None,
         additional_claims_loader: Optional[Callable] = None,
     ):
-        super().__init__(
-            model, db_session, repository_class=repository_class
-        )
+        super().__init__(model, db_session, repository_class=repository_class)
         self.additional_claims_loader = additional_claims_loader
 
     @staticmethod
@@ -39,7 +37,10 @@ class UserService(BaseService[User]):
             raise BusinessLogicError("Password must include letters and numbers.")
 
     def _username_exists(self, username: str) -> bool:
-        return self.repo.find_one_by({"username": username}) is not None
+        return (
+            self.repo.find_one_by({"username": username}, deleted_state="all")
+            is not None
+        )
 
     def pre_create_hook(self, data: Dict[str, Any]) -> Dict[str, Any]:
         username = data.get("username")
@@ -61,14 +62,10 @@ class UserService(BaseService[User]):
             current_app.logger.warning(f"Failed login attempt for username: {username}")
             raise AuthenticationError("Invalid credentials.")
         if not user.is_active:
-            current_app.logger.warning(
-                f"Inactive user login attempt: {username}"
-            )
+            current_app.logger.warning(f"Inactive user login attempt: {username}")
             raise AuthenticationError("User account is not active.")
         if getattr(user, "deleted_at", None) is not None:
-            current_app.logger.warning(
-                f"Deleted user login attempt: {username}"
-            )
+            current_app.logger.warning(f"Deleted user login attempt: {username}")
             raise AuthenticationError("User account has been deleted.")
 
         user.last_login_at = datetime.now()
@@ -132,9 +129,7 @@ class UserService(BaseService[User]):
 
 class RoleService(BaseService[Role]):
     def __init__(self, model, db_session, repository_class=None):
-        super().__init__(
-            model, db_session, repository_class=repository_class
-        )
+        super().__init__(model, db_session, repository_class=repository_class)
 
     def pre_delete_hook(self, instance: Role) -> None:
         if instance.is_system_role:
@@ -190,9 +185,7 @@ class RoleService(BaseService[Role]):
 
 class PermissionService(BaseService[Permission]):
     def __init__(self, model, db_session, repository_class=None):
-        super().__init__(
-            model, db_session, repository_class=repository_class
-        )
+        super().__init__(model, db_session, repository_class=repository_class)
         self.role_repo = BaseRepository(Role, self._db_session)
 
     def assign_permission_to_role(self, role_id: int, permission_id: int):

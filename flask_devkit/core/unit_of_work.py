@@ -4,8 +4,8 @@ from functools import wraps
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
-from flask_devkit.database import db
 from flask_devkit.core.exceptions import DuplicateEntryError
+from flask_devkit.database import db
 
 
 def unit_of_work(f):

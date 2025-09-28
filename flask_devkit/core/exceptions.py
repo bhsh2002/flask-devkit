@@ -68,7 +68,11 @@ class DuplicateEntryError(AppBaseException):
     status_code = 409  # Conflict
     error_code = "DUPLICATE_ENTRY"
 
-    def __init__(self, message: str = "A database entry with the given value already exists.", original_exception: Exception | None = None):
+    def __init__(
+        self,
+        message: str = "A database entry with the given value already exists.",
+        original_exception: Exception | None = None,
+    ):
         super().__init__(message, status_code=409, error_code=self.error_code)
         self.original_exception = original_exception
 

@@ -20,12 +20,14 @@ try:
         FreshTokenRequired,
         NoAuthorizationError,
         RevokedTokenError,
+        WrongTokenError,
     )
 except ImportError:
     NoAuthorizationError = None
     CSRFError = None
     FreshTokenRequired = None
     RevokedTokenError = None
+    WrongTokenError = None
 from flask_devkit.auth.decorators import permission_required
 from flask_devkit.core.service import BaseService
 from flask_devkit.core.unit_of_work import unit_of_work
@@ -102,6 +104,16 @@ def register_error_handlers(bp: APIBlueprint):
             return {
                 "message": "Token has been revoked.",
                 "error_code": "TOKEN_REVOKED",
+            }, 401
+
+    if WrongTokenError is not None:
+
+        @bp.errorhandler(WrongTokenError)
+        def handle_wrong_token(error):
+            current_app.logger.warning("Attempt to use a wrong token type.")
+            return {
+                "message": "Wrong token type.",
+                "error_code": "WRONG_TOKEN_TYPE",
             }, 401
 
     @bp.errorhandler(ValidationError)

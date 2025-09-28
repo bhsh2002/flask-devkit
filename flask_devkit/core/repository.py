@@ -6,15 +6,15 @@ This module contains the BaseRepository class which encapsulates common
 database operations (CRUD, pagination, filtering) for a given model.
 """
 
-import math
 import datetime
+import math
 from functools import wraps
 from typing import Any, Dict, Generic, List, NamedTuple, Optional, Type, TypeVar
 
 from flask import current_app
-from sqlalchemy import func, or_, inspect
+from sqlalchemy import func, inspect, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import DeclarativeMeta, Session, Query
+from sqlalchemy.orm import DeclarativeMeta, Query, Session
 
 from flask_devkit.core.archive import ArchivedRecord
 from flask_devkit.core.exceptions import DatabaseError, DuplicateEntryError
@@ -91,7 +91,8 @@ class BaseRepository(Generic[T]):
         for field_name, conditions_string in filters.items():
             if not hasattr(self.model, field_name):
                 current_app.logger.warning(
-                    f"Filter field '{field_name}' does not exist on model '{self.model.__name__}'"
+                    f"Filter field '{field_name}' "
+                    f"does not exist on model '{self.model.__name__}'"
                 )
                 continue
 
