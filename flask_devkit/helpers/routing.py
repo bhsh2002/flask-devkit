@@ -6,10 +6,11 @@ Provides a powerful factory function to auto-generate CRUD REST endpoints.
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from apiflask import APIBlueprint
+from apiflask.exceptions import HTTPError, _ValidationError
 from flask import current_app
 from flask_jwt_extended import jwt_required
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
-from marshmallow import ValidationError
+from marshmallow.exceptions import ValidationError
 from werkzeug.exceptions import HTTPException
 
 from flask_devkit.core.exceptions import AppBaseException, NotFoundError
@@ -129,6 +130,21 @@ def register_error_handlers(bp: APIBlueprint):
         )
         error_code = error.name.replace(" ", "_").upper()
         return {"message": error.description, "error_code": error_code}, error.code
+
+    @bp.errorhandler(_ValidationError)
+    def handle_apifask_validation_error(error):
+        """Handles APIFlask validation exceptions."""
+        current_app.logger.info(f"APIFlask validation error: {error.message}")
+        return {"message": "Validation failed", "errors": error.detail}, 422
+
+    @bp.errorhandler(HTTPError)
+    def handle_apifask_http_error(error):
+        """Handles APIFlask HTTP exceptions."""
+        current_app.logger.info(
+            f"APIFlask HTTP exception: {error.status_code} - {error.message}"
+        )
+        error_code = error.status_code or "HTTP_ERROR"
+        return {"message": error.message, "error_code": error_code}, error.status_code
 
     @bp.errorhandler(Exception)
     def handle_general_error(error):
