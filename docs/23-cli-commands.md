@@ -30,7 +30,7 @@ flask devkit-init-db
 flask devkit-truncate-db
 
 # Output:
-# Truncated table: devkit_audit_log
+# Truncated table: audit_log
 # Truncated table: role_permissions
 # ...
 # All tables have been truncated.

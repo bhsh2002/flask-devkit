@@ -18,7 +18,8 @@ class AuditLog(db.Model):
     """
     Represents a log of a single CUD operation on a database model.
     """
-    __tablename__ = "devkit_audit_log"
+
+    __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     timestamp: Mapped[datetime.datetime] = mapped_column(
@@ -30,7 +31,9 @@ class AuditLog(db.Model):
         nullable=True,
         index=True,
     )
-    action: Mapped[str] = mapped_column(String(10), nullable=False, index=True)  # CREATE, UPDATE, DELETE
+    action: Mapped[str] = mapped_column(
+        String(10), nullable=False, index=True
+    )  # CREATE, UPDATE, DELETE
     table_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     record_pk: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     old_values: Mapped[dict] = mapped_column(JSON, nullable=True)

@@ -38,12 +38,33 @@ class BaseService(Generic[TModel]):
     def pre_create_hook(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return data
 
+    def post_create_hook(self, instance: TModel) -> TModel:
+        return instance
+
     def pre_update_hook(self, instance: TModel, data: Dict[str, Any]):
         for key, value in data.items():
             if hasattr(instance, key):
                 setattr(instance, key, value)
 
+    def post_update_hook(self, instance: TModel) -> TModel:
+        return instance
+
     def pre_delete_hook(self, instance: TModel) -> None:
+        pass
+
+    def post_delete_hook(self, instance: TModel) -> None:
+        pass
+
+    def pre_restore_hook(self, instance: TModel) -> None:
+        pass
+
+    def post_restore_hook(self, instance: TModel) -> None:
+        pass
+
+    def pre_force_delete_hook(self, instance: TModel) -> None:
+        pass
+
+    def post_force_delete_hook(self, instance: TModel) -> None:
         pass
 
     # --- Read Hooks ---
@@ -56,7 +77,9 @@ class BaseService(Generic[TModel]):
     def pre_list_hook(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
 
-    def post_list_hook(self, result: PaginationResult[TModel]) -> PaginationResult[TModel]:
+    def post_list_hook(
+        self, result: PaginationResult[TModel]
+    ) -> PaginationResult[TModel]:
         return result
 
     # --- Write Operations ---
@@ -117,7 +140,9 @@ class BaseService(Generic[TModel]):
         entity = self.repo.get_by_id(id_, deleted_state=deleted_state)
         return self.post_get_hook(entity)
 
-    def get_by_uuid(self, uuid_: str, deleted_state: str = "active") -> Optional[TModel]:
+    def get_by_uuid(
+        self, uuid_: str, deleted_state: str = "active"
+    ) -> Optional[TModel]:
         self.pre_get_hook(uuid_, "uuid")
         entity = self.repo.get_by_uuid(uuid_, deleted_state=deleted_state)
         return self.post_get_hook(entity)
