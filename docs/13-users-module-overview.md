@@ -48,9 +48,9 @@
 
 ## تخصيص المسارات (Customizing Routes)
 
-في بعض الحالات، قد ترغب في تعطيل بعض المسارات الافتراضية التي توفرها `Flask-DevKit`. على سبيل المثال، قد ترغب في استخدام نظام مصادقة مختلف وتعطيل مسار `/auth/login` الافتراضي.
+في بعض الحالات، قد ترغب في تعطيل أو تعديل المسارات الافتراضية التي توفرها `Flask-DevKit`. على سبيل المثال، قد ترغب في استخدام نظام مصادقة مختلف وتعطيل مسار `/auth/login` الافتراضي، أو تغيير عنوان URL لمسار معين.
 
-يمكنك تحقيق ذلك عن طريق تمرير قاموس `routes_config` إلى `DevKit` عند تهيئة التطبيق.
+يمكنك تحقيق ذلك عن طريق تمرير قاموس `routes_config` إلى `DevKit` عند تهيئة التطبيق. يتيح لك هذا القاموس تجاوز أي من المعلمات المستخدمة في دالة `register_custom_route`.
 
 **مثال: تعطيل مسار تسجيل الدخول**
 
@@ -60,7 +60,7 @@ from flask_devkit import DevKit
 
 routes_config = {
     "user": {
-        "login": {"enabled": False}
+        "login": {"enabled": False} # تعطيل المسار
     }
 }
 
@@ -70,4 +70,26 @@ devkit.register_routes_config("user", routes_config["user"])
 devkit.init_app(app)
 ```
 
-في هذا المثال، قمنا بتعطيل مسار `/auth/login`. يمكنك استخدام نفس النمط لتعطيل أي من المسارات الافتراضية الأخرى في وحدة المستخدمين، مثل `refresh`، `whoami`، `change_password`، إلخ.
+**مثال: تعديل مسار وإضافة صلاحية**
+
+يمكنك أيضًا تجاوز أي من المعلمات الأخرى لـ `register_custom_route`، مثل `rule`، `methods`، `permission`، و `decorators`.
+
+```python
+routes_config = {
+    "user": {
+        "login": {
+            "rule": "/signin", # تغيير عنوان URL
+            "methods": ["POST"],
+        },
+        "whoami": {
+            "permission": "read:self" # إضافة صلاحية مخصصة
+        }
+    }
+}
+
+devkit = DevKit()
+devkit.register_routes_config("user", routes_config["user"])
+devkit.init_app(app)
+```
+
+في هذا المثال، قمنا بتغيير مسار تسجيل الدخول من `/auth/login` إلى `/auth/signin`، وأضفنا صلاحية `read:self` إلى مسار `/auth/me`.
