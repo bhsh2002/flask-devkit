@@ -45,3 +45,29 @@
     - `flask devkit-seed`: أمر حيوي يقوم بملء قاعدة البيانات بمجموعة من الصلاحيات الافتراضية، ودور "admin" يمتلك كل الصلاحيات، وإنشاء مستخدم مسؤول أول.
 
 ببساطة، بمجرد تشغيل `devkit.init_app(app)` و `flask devkit-seed`، يكون لديك نظام مصادقة وتحكم في الوصول كامل وجاهز للاستخدام والتوسيع.
+
+## تخصيص المسارات (Customizing Routes)
+
+في بعض الحالات، قد ترغب في تعطيل بعض المسارات الافتراضية التي توفرها `Flask-DevKit`. على سبيل المثال، قد ترغب في استخدام نظام مصادقة مختلف وتعطيل مسار `/auth/login` الافتراضي.
+
+يمكنك تحقيق ذلك عن طريق تمرير قاموس `routes_config` إلى `DevKit` عند تهيئة التطبيق.
+
+**مثال: تعطيل مسار تسجيل الدخول**
+
+```python
+# In your app factory
+from flask_devkit import DevKit
+
+routes_config = {
+    "user": {
+        "login": {"enabled": False}
+    }
+}
+
+devkit = DevKit()
+# "user" is the service_name
+devkit.register_routes_config("user", routes_config["user"])
+devkit.init_app(app)
+```
+
+في هذا المثال، قمنا بتعطيل مسار `/auth/login`. يمكنك استخدام نفس النمط لتعطيل أي من المسارات الافتراضية الأخرى في وحدة المستخدمين، مثل `refresh`، `whoami`، `change_password`، إلخ.

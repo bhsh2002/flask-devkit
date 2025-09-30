@@ -156,9 +156,11 @@ class DevKit:
         )
 
         if self.get_service("user"):
-            auth_bp, users_bp, roles_bp, permissions_bp = create_all_blueprints(bp)
-
             user_routes_config = self.routes_config_overrides.get("user")
+            auth_bp, users_bp, roles_bp, permissions_bp = create_all_blueprints(
+                bp, routes_config=user_routes_config
+            )
+
             register_crud_routes(
                 bp=users_bp,
                 service=self.get_service("user"),
