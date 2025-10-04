@@ -131,7 +131,7 @@ class RoleService(BaseService[Role]):
     def __init__(self, model, db_session, repository_class=None):
         super().__init__(model, db_session, repository_class=repository_class)
 
-    def pre_delete_hook(self, instance: Role) -> None:
+    def pre_delete_hook(self, instance: Role, data: Optional[Dict[str, Any]] = None) -> None:
         if instance.is_system_role:
             raise BusinessLogicError(
                 f"System role '{instance.name}' cannot be deleted."
