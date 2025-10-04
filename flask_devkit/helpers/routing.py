@@ -155,10 +155,49 @@ def register_error_handlers(bp: APIBlueprint):
         }, 500
 
 
+def _get_schema_details(schema_info, default_location=None):
+    """
+    Parses a schema definition, which can be a schema class or a dictionary
+    with schema, location, and arg_name.
+    """
+    if isinstance(schema_info, dict):
+        schema = schema_info["schema"]
+        location = schema_info.get("location", default_location)
+        arg_name = schema_info.get("arg_name")
+        return schema, location, arg_name
+    return schema_info, default_location, None
+
+
+def _prepare_input_schemes(
+    route_cfg: Dict[str, Any], default_schema: Any
+) -> List[Dict[str, Any]]:
+    """Normalizes input schema config to a list of dicts."""
+    input_schema_config = route_cfg.get("input_schema", default_schema)
+    if not input_schema_config:
+        return []
+    if isinstance(input_schema_config, list):
+        return input_schema_config
+    return [input_schema_config]
+
+
+def _merge_schema_data(
+    schema_configs: List[Dict[str, Any]], **kwargs
+) -> Dict[str, Any]:
+    """Merges data from multiple schema locations in kwargs."""
+    merged_data = {}
+    for config in schema_configs:
+        _, location, arg_name = _get_schema_details(config)
+        # Determine the argument name APIFlask will use
+        effective_arg_name = arg_name or f"{location}_data"
+        if effective_arg_name in kwargs:
+            merged_data.update(kwargs[effective_arg_name])
+    return merged_data
+
+
 def register_crud_routes(
     bp: APIBlueprint,
     service: BaseService,
-    schemas: Dict[str, Type],
+    schemas: Dict[str, Any],
     entity_name: str,
     *,
     id_field: str = "uuid",
@@ -166,53 +205,51 @@ def register_crud_routes(
 ):
     """
     Registers a standard set of CRUD routes for a given entity.
-    This refactored version applies decorators directly for better readability.
+    This version allows for custom schemas and flexible data location per route.
     """
     register_error_handlers(bp)
 
-    main_schema = schemas["main"]
-    input_schema = schemas["input"]
-    update_schema = schemas["update"]
-    query_schema = schemas["query"]
-    pagination_out_schema = schemas["pagination_out"]
-
-    if id_field not in {"id", "uuid"}:
-        raise ValueError("id_field must be either 'id' or 'uuid'")
-
     cfg: Dict[str, Dict[str, Any]] = routes_config or {}
 
-    # --- Route: List ---
-    if cfg.get("list", {}).get("enabled", True):
-        route_cfg = cfg.get("list", {})
+    # --- Helper to build a decorated view ---
+    def build_view(
+        route_name: str,
+        view_logic: Callable,
+        http_method: str,
+        rule: str,
+        default_input: Any,
+        default_output: Any,
+        status_code: int,
+        uow: bool,
+    ):
+        route_cfg = cfg.get(route_name, {})
+        if not route_cfg.get("enabled", True):
+            return
+
         auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission")
+        permission = route_cfg.get(
+            "permission",
+            f"{route_name}:{entity_name}"
+            if route_name in ["create", "update", "delete", "restore", "force_delete"]
+            else None,
+        )
         decorators = route_cfg.get("decorators")
 
-        def list_items(query_data):
-            """Retrieve a paginated list of items."""
-            filters = query_data.copy()
-            page = filters.pop("page", 1)
-            per_page = filters.pop("per_page", 10)
-            sort_by_str = filters.pop("sort_by", None)
-            deleted_state = filters.pop("deleted_state", "active")
-            order_by = (
-                [s.strip() for s in sort_by_str.split(",") if s.strip()]
-                if sort_by_str
-                else None
-            )
+        input_schema_configs = _prepare_input_schemes(route_cfg, default_input)
+        output_schema_info = route_cfg.get("output_schema", default_output)
+        output_schema, _, _ = _get_schema_details(output_schema_info)
 
-            return (
-                service.paginate(
-                    page=page,
-                    per_page=per_page,
-                    filters=filters,
-                    order_by=order_by,
-                    deleted_state=deleted_state,
-                ),
-                200,
-            )
+        def view_wrapper(**kwargs):
+            data = _merge_schema_data(input_schema_configs, **kwargs)
+            return view_logic(data=data, **kwargs)
 
-        view = list_items
+        # Assign a unique name to the wrapper function to avoid endpoint conflicts
+        view_wrapper.__name__ = f"{route_name}_{entity_name}_view"
+
+        view = view_wrapper
+        if uow:
+            view = unit_of_work(view)
+
         if decorators:
             for decorator in reversed(decorators):
                 view = decorator(view)
@@ -221,238 +258,158 @@ def register_crud_routes(
         if auth_required:
             view = jwt_required()(view)
 
-        doc_params = {"summary": f"List all {entity_name}s"}
+        doc_params = {
+            "summary": f"{route_name.replace('_', ' ').capitalize()} {entity_name}"
+        }
         if auth_required:
             doc_params["security"] = "bearerAuth"
 
-        bp.get("/")(
-            bp.input(query_schema, location="query")(
-                bp.output(pagination_out_schema)(bp.doc(**doc_params)(view))
-            )
-        )
+        final_view = bp.doc(**doc_params)(view)
+        if output_schema:
+            final_view = bp.output(output_schema, status_code=status_code)(final_view)
 
-    # --- Route: List Deleted ---
-    if cfg.get("list_deleted", {}).get("enabled", True):
-        route_cfg = cfg.get("list_deleted", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission", f"list_deleted:{entity_name}")
-        decorators = route_cfg.get("decorators")
+        for config in reversed(input_schema_configs):
+            schema, location, arg_name = _get_schema_details(config)
+            schema_instance = schema(partial=True) if route_name == "update" else schema
+            final_view = bp.input(
+                schema_instance, location=location, arg_name=arg_name
+            )(final_view)
 
-        def list_deleted_items(query_data):
-            """Retrieve a paginated list of soft-deleted items."""
-            filters = query_data.copy()
-            page = filters.pop("page", 1)
-            per_page = filters.pop("per_page", 10)
-            sort_by_str = filters.pop("sort_by", None)
-            order_by = (
-                [s.strip() for s in sort_by_str.split(",") if s.strip()]
-                if sort_by_str
-                else None
-            )
-            filters.pop("deleted_state", None)  # Remove to avoid conflict
+        bp.route(rule, methods=[http_method])(final_view)
 
-            return (
-                service.paginate(
-                    page=page,
-                    per_page=per_page,
-                    filters=filters,
-                    order_by=order_by,
-                    deleted_state="deleted_only",
-                ),
-                200,
-            )
+    # --- Define View Logics ---
+    def list_logic(data, **kwargs):
+        filters = data.copy()
+        page = filters.pop("page", 1)
+        per_page = filters.pop("per_page", 10)
+        sort_by_str = filters.pop("sort_by", None)
+        deleted_state = filters.pop("deleted_state", "active")
+        order_by = [s.strip() for s in sort_by_str.split(",")] if sort_by_str else None
+        return service.paginate(
+            page=page,
+            per_page=per_page,
+            filters=filters,
+            order_by=order_by,
+            deleted_state=deleted_state,
+        ), 200
 
-        view = list_deleted_items
-        if decorators:
-            for decorator in reversed(decorators):
-                view = decorator(view)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
+    def list_deleted_logic(data, **kwargs):
+        filters = data.copy()
+        page = filters.pop("page", 1)
+        per_page = filters.pop("per_page", 10)
+        sort_by_str = filters.pop("sort_by", None)
+        order_by = [s.strip() for s in sort_by_str.split(",")] if sort_by_str else None
+        filters.pop("deleted_state", None)
+        return service.paginate(
+            page=page,
+            per_page=per_page,
+            filters=filters,
+            order_by=order_by,
+            deleted_state="deleted_only",
+        ), 200
 
-        doc_params = {"summary": f"List all soft-deleted {entity_name}s"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
+    def get_logic(data, **kwargs):
+        item_id = kwargs[id_field]
+        item = getattr(service, f"get_by_{id_field}")(item_id)
+        if item is None:
+            raise NotFoundError(entity_name, item_id)
+        return item
 
-        bp.get("/deleted")(
-            bp.input(query_schema, location="query")(
-                bp.output(pagination_out_schema)(bp.doc(**doc_params)(view))
-            )
-        )
+    def create_logic(data, **kwargs):
+        return service.create(data)
 
-    # --- Route: Get ---
-    if cfg.get("get", {}).get("enabled", True):
-        route_cfg = cfg.get("get", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission")
-        decorators = route_cfg.get("decorators")
+    def update_logic(data, **kwargs):
+        item_id = kwargs[id_field]
+        return service.update(item_id, data, id_field=id_field)
 
-        def get_item(**kwargs):
-            """Retrieve a single item by its ID or UUID."""
-            item_id = kwargs[id_field]
-            method_to_call = getattr(service, f"get_by_{id_field}")
-            item = method_to_call(item_id)
-            if item is None:
-                raise NotFoundError(entity_name, item_id)
-            return item
+    def delete_logic(data, **kwargs):
+        item_id = kwargs[id_field]
+        service.delete(entity_id=item_id, id_field=id_field, data=data)
+        return {"message": f"{entity_name.capitalize()} deleted successfully."}
 
-        view = get_item
-        if decorators:
-            for decorator in reversed(decorators):
-                view = decorator(view)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
+    def restore_logic(data, **kwargs):
+        item_id = kwargs[id_field]
+        return service.restore(entity_id=item_id, id_field=id_field, data=data)
 
-        doc_params = {"summary": f"Get a single {entity_name}"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
+    def force_delete_logic(data, **kwargs):
+        item_id = kwargs[id_field]
+        service.force_delete(entity_id=item_id, id_field=id_field, data=data)
+        return {"message": f"{entity_name.capitalize()} permanently deleted."}
 
-        bp.get(f"/<{id_field}>")(bp.output(main_schema)(bp.doc(**doc_params)(view)))
-
-    # --- Route: Create ---
-    if cfg.get("create", {}).get("enabled", True):
-        route_cfg = cfg.get("create", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission", f"create:{entity_name}")
-        decorators = route_cfg.get("decorators")
-
-        def create_item(json_data):
-            """Create a new item."""
-            return service.create(json_data)
-
-        view = unit_of_work(create_item)
-        if decorators:
-            for decorator in reversed(decorators):
-                view = decorator(view)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
-
-        doc_params = {"summary": f"Create a new {entity_name}"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
-
-        bp.post("/")(
-            bp.input(input_schema)(
-                bp.output(main_schema, status_code=201)(bp.doc(**doc_params)(view))
-            )
-        )
-
-    # --- Route: Update ---
-    if cfg.get("update", {}).get("enabled", True):
-        route_cfg = cfg.get("update", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission", f"update:{entity_name}")
-        decorators = route_cfg.get("decorators")
-
-        def update_item(json_data, **kwargs):
-            """Update a single item."""
-            item_id = kwargs[id_field]
-            return service.update(item_id, json_data, id_field=id_field)
-
-        view = unit_of_work(update_item)
-        if decorators:
-            for decorator in reversed(decorators):
-                view = decorator(view)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
-
-        doc_params = {"summary": f"Update an existing {entity_name}"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
-
-        bp.patch(f"/<{id_field}>")(
-            bp.input(update_schema(partial=True))(
-                bp.output(main_schema)(bp.doc(**doc_params)(view))
-            )
-        )
-
-    # --- Route: Delete ---
-    if cfg.get("delete", {}).get("enabled", True):
-        route_cfg = cfg.get("delete", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission", f"delete:{entity_name}")
-        decorators = route_cfg.get("decorators")
-
-        def delete_item(**kwargs):
-            """Delete a single item."""
-            item_id = kwargs[id_field]
-            service.delete(entity_id=item_id, id_field=id_field)
-            return {"message": f"{entity_name.capitalize()} deleted successfully."}
-
-        view = unit_of_work(delete_item)
-        if decorators:
-            for decorator in reversed(decorators):
-                view = decorator(view)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
-
-        doc_params = {"summary": f"Delete an {entity_name}"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
-
-        bp.delete(f"/<{id_field}>")(
-            bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
-        )
-
-    # --- Route: Restore ---
-    if cfg.get("restore", {}).get("enabled", True):  # Disabled by default
-        route_cfg = cfg.get("restore", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission", f"restore:{entity_name}")
-
-        def restore_item(**kwargs):
-            """Restore a soft-deleted item."""
-            item_id = kwargs[id_field]
-            return service.restore(item_id, id_field=id_field)
-
-        view = unit_of_work(restore_item)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
-
-        doc_params = {"summary": f"Restore a soft-deleted {entity_name}"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
-
-        bp.post(f"/<{id_field}>/restore")(
-            bp.output(main_schema)(bp.doc(**doc_params)(view))
-        )
-
-    # --- Route: Force Delete ---
-    if cfg.get("force_delete", {}).get("enabled", True):  # Disabled by default
-        route_cfg = cfg.get("force_delete", {})
-        auth_required = route_cfg.get("auth_required", True)
-        permission = route_cfg.get("permission", f"force_delete:{entity_name}")
-
-        def force_delete_item(**kwargs):
-            """Permanently delete an item."""
-            item_id = kwargs[id_field]
-            service.force_delete(entity_id=item_id, id_field=id_field)
-            return {"message": f"{entity_name.capitalize()} permanently deleted."}
-
-        view = unit_of_work(force_delete_item)
-        if permission:
-            view = permission_required(permission)(view)
-        if auth_required:
-            view = jwt_required()(view)
-
-        doc_params = {"summary": f"Permanently delete an {entity_name}"}
-        if auth_required:
-            doc_params["security"] = "bearerAuth"
-
-        bp.delete(f"/<{id_field}>/force")(
-            bp.output(MessageSchema, status_code=200)(bp.doc(**doc_params)(view))
-        )
+    # --- Register Routes ---
+    build_view(
+        "list",
+        list_logic,
+        "GET",
+        "/",
+        schemas.get("query"),
+        schemas.get("pagination_out"),
+        200,
+        False,
+    )
+    build_view(
+        "list_deleted",
+        list_deleted_logic,
+        "GET",
+        "/deleted",
+        schemas.get("query"),
+        schemas.get("pagination_out"),
+        200,
+        False,
+    )
+    build_view(
+        "get", get_logic, "GET", f"/<{id_field}>", None, schemas.get("main"), 200, False
+    )
+    build_view(
+        "create",
+        create_logic,
+        "POST",
+        "/",
+        schemas.get("input"),
+        schemas.get("main"),
+        201,
+        True,
+    )
+    build_view(
+        "update",
+        update_logic,
+        "PATCH",
+        f"/<{id_field}>",
+        schemas.get("update"),
+        schemas.get("main"),
+        200,
+        True,
+    )
+    build_view(
+        "delete",
+        delete_logic,
+        "DELETE",
+        f"/<{id_field}>",
+        None,
+        MessageSchema,
+        200,
+        True,
+    )
+    build_view(
+        "restore",
+        restore_logic,
+        "POST",
+        f"/<{id_field}>/restore",
+        None,
+        schemas.get("main"),
+        200,
+        True,
+    )
+    build_view(
+        "force_delete",
+        force_delete_logic,
+        "DELETE",
+        f"/<{id_field}>/force",
+        None,
+        MessageSchema,
+        200,
+        True,
+    )
 
 
 def register_custom_route(
@@ -495,12 +452,10 @@ def register_custom_route(
     """
     view = view_func
 
-    # Apply custom decorators first
     if decorators:
         for decorator in reversed(decorators):
             view = decorator(view)
 
-    # Apply built-in decorators in reverse order of execution
     if apply_unit_of_work:
         view = unit_of_work(view)
     if permission:
@@ -512,12 +467,10 @@ def register_custom_route(
     if auth_required and "security" not in doc_params:
         doc_params["security"] = "bearerAuth"
 
-    # Apply apiflask decorators last, so they run first
     final_view = bp.doc(**doc_params)(view)
     if output_schema:
         final_view = bp.output(output_schema, status_code=status_code)(final_view)
 
-    # Apply input decorators for all specified schemas
     if input_schemas:
         for input_spec in reversed(input_schemas):
             schema = input_spec["schema"]

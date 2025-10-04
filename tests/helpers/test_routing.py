@@ -262,8 +262,6 @@ def test_fresh_token_required_returns_401(app, client):
     assert response.status_code == 401
     assert response.json["error_code"] == "FRESH_TOKEN_REQUIRED"
 
-
-
 def test_expired_token_returns_401(app, client):
     """Tests that a request with an expired token returns a 401 error."""
     from datetime import timedelta

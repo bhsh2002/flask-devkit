@@ -49,19 +49,19 @@ class BaseService(Generic[TModel]):
     def post_update_hook(self, instance: TModel) -> TModel:
         return instance
 
-    def pre_delete_hook(self, instance: TModel) -> None:
+    def pre_delete_hook(self, instance: TModel, data: Optional[Dict[str, Any]] = None) -> None:
         pass
 
     def post_delete_hook(self, instance: TModel) -> None:
         pass
 
-    def pre_restore_hook(self, instance: TModel) -> None:
+    def pre_restore_hook(self, instance: TModel, data: Optional[Dict[str, Any]] = None) -> None:
         pass
 
-    def post_restore_hook(self, instance: TModel) -> None:
-        pass
+    def post_restore_hook(self, instance: TModel) -> TModel:
+        return instance
 
-    def pre_force_delete_hook(self, instance: TModel) -> None:
+    def pre_force_delete_hook(self, instance: TModel, data: Optional[Dict[str, Any]] = None) -> None:
         pass
 
     def post_force_delete_hook(self, instance: TModel) -> None:
@@ -88,7 +88,7 @@ class BaseService(Generic[TModel]):
         entity = self.repo.create(processed_data)
         self._db_session.flush()
         self._db_session.refresh(entity)
-        return entity
+        return self.post_create_hook(entity)
 
     def update(
         self, entity_id: Any, data: Dict[str, Any], id_field: str = "id"
@@ -101,37 +101,44 @@ class BaseService(Generic[TModel]):
 
         self.pre_update_hook(entity, data)
         self._db_session.flush()
-        return entity
+        self._db_session.refresh(entity)
+        return self.post_update_hook(entity)
 
-    def delete(self, entity_id: Any, id_field: str = "id", soft: bool = True) -> None:
+    def delete(self, entity_id: Any, id_field: str = "id", soft: bool = True, data: Optional[Dict[str, Any]] = None) -> None:
         finder = getattr(self.repo, f"get_by_{id_field}", self.repo.get_by_id)
         entity = finder(entity_id)
 
         if not entity:
             raise NotFoundError(entity_name=self.model.__name__, entity_id=entity_id)
 
-        self.pre_delete_hook(entity)
+        self.pre_delete_hook(entity, data)
         self.repo.delete(entity, soft=soft)
+        self.post_delete_hook(entity)
         return None
 
-    def restore(self, entity_id: Any, id_field: str = "id") -> TModel:
+    def restore(self, entity_id: Any, id_field: str = "id", data: Optional[Dict[str, Any]] = None) -> TModel:
         finder = getattr(self.repo, f"get_by_{id_field}", self.repo.get_by_id)
         entity = finder(entity_id, deleted_state="all")
 
         if not entity:
             raise NotFoundError(entity_name=self.model.__name__, entity_id=entity_id)
 
+        self.pre_restore_hook(entity, data)
         self.repo.restore(entity)
-        return entity
+        self._db_session.flush()
+        self._db_session.refresh(entity)
+        return self.post_restore_hook(entity)
 
-    def force_delete(self, entity_id: Any, id_field: str = "id") -> None:
+    def force_delete(self, entity_id: Any, id_field: str = "id", data: Optional[Dict[str, Any]] = None) -> None:
         finder = getattr(self.repo, f"get_by_{id_field}", self.repo.get_by_id)
         entity = finder(entity_id, deleted_state="all")
 
         if not entity:
             raise NotFoundError(entity_name=self.model.__name__, entity_id=entity_id)
 
+        self.pre_force_delete_hook(entity, data)
         self.repo.force_delete(entity)
+        self.post_force_delete_hook(entity)
         return None
 
     # --- Read Operations ---

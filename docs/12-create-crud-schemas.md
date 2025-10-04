@@ -89,3 +89,13 @@ product_schemas = create_crud_schemas(
 ```
 
 القاموس `product_schemas` الناتج جاهز الآن ليتم تمريره مباشرة إلى دالة `register_crud_routes`، مما يكمل دورة أتمتة واجهة برمجة التطبيقات.
+
+---
+
+## تجاوز المخططات المولّدة (Overriding Generated Schemas)
+
+بينما توفر `create_crud_schemas` نقطة بداية ممتازة، قد تحتاج أحيانًا إلى مرونة أكبر. تتيح لك `Flask-DevKit` تجاوز هذه المخططات المولّدة بسهولة على مستوى كل مسار على حدة.
+
+يمكنك استخدام المعلمة `routes_config` في دالة `register_crud_routes` لتحديد مخطط إدخال أو إخراج مختلف تمامًا، أو حتى تغيير مصدر البيانات (مثل التبديل من `json` إلى `form`).
+
+لمزيد من التفاصيل والأمثلة، راجع وثائق [دالة `register_crud_routes`](./11-register-crud-routes.md).

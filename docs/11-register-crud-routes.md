@@ -21,7 +21,7 @@
 def register_crud_routes(
     bp: APIBlueprint,
     service: BaseService,
-    schemas: Dict[str, Type],
+    schemas: Dict[str, Any],
     entity_name: str,
     *,
     id_field: str = "uuid",
@@ -31,10 +31,10 @@ def register_crud_routes(
 
 - **`bp`**: الـ `Blueprint` الذي سيتم تسجيل المسارات عليه.
 - **`service`**: نسخة من الخدمة (`BaseService` أو فئة فرعية منها) التي تحتوي على منطق الأعمال.
-- **`schemas`**: قاموس يحتوي على الـ Schemas التي تم إنشاؤها بواسطة `create_crud_schemas`.
-- **`entity_name`**: اسم الكيان (e.g., `"product"`)، يُستخدم لإنشاء أسماء الصلاحيات الافتراضية (e.g., `"create:product"`).
-- **`id_field`**: الحقل الذي سيتم استخدامه في عنوان URL للتعرف على السجلات (`"id"` أو `"uuid"`). الافتراضي هو `"uuid"`.
-- **`routes_config`**: قاموس للتحكم الدقيق في كل مسار يتم إنشاؤه. هذا هو مفتاح التخصيص.
+- **`schemas`**: قاموس يحتوي على تعريفات الـ Schemas الافتراضية.
+- **`entity_name`**: اسم الكيان (e.g., `"product"`)، يُستخدم لإنشاء أسماء الصلاحيات الافتراضية.
+- **`id_field`**: الحقل الذي سيتم استخدامه في عنوان URL للتعرف على السجلات (`"id"` أو `"uuid"`).
+- **`routes_config`**: قاموس للتحكم الدقيق في كل مسار يتم إنشاؤه.
 
 ## تخصيص المسارات باستخدام `routes_config`
 
@@ -47,61 +47,74 @@ routes_config = {
         "auth_required": bool,
         "permission": str | None,
         "decorators": List[Callable] | None,
+        "input_schema": Dict[str, Any] | List[Dict[str, Any]] | None,
+        "output_schema": Dict[str, Any] | None,
     }
 }
 ```
 
-- **`enabled`**: `True` لتفعيل المسار، `False` لتعطيله. (بشكل افتراضي، `restore` و `force_delete` معطلان).
-- **`auth_required`**: `True` لتطبيق المُزين `@jwt_required()`. (الافتراضي `True`).
-- **`permission`**: اسم الصلاحية المطلوبة للوصول إلى المسار. إذا كانت `None`، لا يتم التحقق من أي صلاحية.
-- **`decorators`**: قائمة من المُزينات (decorators) الإضافية التي تريد تطبيقها على المسار.
+- **`enabled`**: `True` لتفعيل المسار، `False` لتعطيله.
+- **`auth_required`**: `True` لتطبيق المُزين `@jwt_required()`.
+- **`permission`**: اسم الصلاحية المطلوبة للوصول إلى المسار.
+- **`input_schema`**: هذه هي الميزة الأقوى. يمكنك تحديد مخطط إدخال واحد أو **قائمة من مخططات الإدخال** لتجاوز السلوك الافتراضي. كل تعريف للمخطط هو قاموس يحدد `schema`, `location`, و `arg_name` (اختياري).
+- **`output_schema`**: تعريف مخطط مخصص لتجاوز مخطط الإخراج الافتراضي.
 
-### مثال عملي: واجهة برمجة تطبيقات للمنتجات
+### مثال 1: تخصيص بسيط
 
-لنفترض أن لدينا `ProductService` و `product_schemas`. ونريد إنشاء واجهة برمجة تطبيقات (API) للمنتجات بالقواعد التالية:
-1.  قائمة المنتجات (`GET /`) يجب أن تكون عامة (لا تتطلب مصادقة).
-2.  إنشاء منتج جديد يتطلب صلاحية `create:product`.
-3.  حذف منتج يتطلب صلاحية خاصة `manage:inventory`.
-4.  يجب تعطيل الحذف النهائي (`force_delete`) تمامًا.
-5.  نريد تسجيل نشاط إنشاء كل منتج باستخدام مُزين مخصص.
+لنفترض أننا نريد جعل قائمة المنتجات عامة (لا تتطلب مصادقة).
 
 ```python
-# my_project/routes.py
-
-from .services import product_service
-from .schemas import product_schemas
-from .decorators import log_product_creation # مُزين مخصص
-
-# 1. تعريف إعدادات المسارات
 product_routes_config = {
     "list": {
-        "auth_required": False, # جعل قائمة المنتجات عامة
+        "auth_required": False,
         "permission": None,
-    },
-    "create": {
-        "permission": "create:product",
-        "decorators": [log_product_creation], # إضافة مُزين مخصص
-    },
-    "delete": {
-        "permission": "manage:inventory", # صلاحية مخصصة
-    },
-    "force_delete": {
-        "enabled": False, # تعطيل الحذف النهائي
-    },
+    }
 }
-
-# 2. إنشاء الـ Blueprint
-products_bp = APIBlueprint("product", __name__, url_prefix="/products")
-
-# 3. تسجيل مسارات CRUD
-register_crud_routes(
-    bp=products_bp,
-    service=product_service,
-    schemas=product_schemas,
-    entity_name="product",
-    id_field="uuid", # استخدام UUID في الـ URL
-    routes_config=product_routes_config,
-)
 ```
 
-بهذه الطريقة، يمكنك توليد واجهات برمجة تطبيقات كاملة ومعقدة في بضعة أسطر فقط، مع الحفاظ على التحكم الكامل في الأمان والسلوك لكل نقطة نهاية.
+### مثال 2: تخصيص متقدم (مدخلات متعددة)
+
+لنفترض أننا نريد لنقطة نهاية إنشاء المنتج (`create`) أن تقبل اسم المنتج من جسم الطلب (`json`) وفئة المنتج من معلمات الاستعلام (`query string`) في نفس الوقت.
+
+```python
+# schemas.py
+class CategorySchema(Schema):
+    category = StringField(required=True)
+
+# routes.py
+product_routes_config = {
+    "create": {
+        "permission": "create:product",
+        # --- استخدام قائمة من المخططات ---
+        "input_schema": [
+            # المخطط الافتراضي من جسم الطلب
+            {"schema": product_schemas["input"], "location": "json"},
+            # مخطط إضافي من معلمات الاستعلام
+            {"schema": CategorySchema, "location": "query"}
+        ]
+    }
+}
+```
+عند استدعاء `POST /products?category=Electronics` مع جسم `{"name": "Laptop"}`، ستقوم الدالة تلقائيًا بدمج البيانات من كلا المصدرين في قاموس واحد `{"name": "Laptop", "category": "Electronics"}` قبل تمريره إلى `service.create()`.
+
+### مثال 3: إضافة جسم طلب إلى مسار الحذف
+
+بشكل افتراضي، لا يقبل مسار `DELETE` أي جسم طلب. لكن يمكنك الآن تفعيل هذه الميزة لطلب سبب عند الحذف.
+
+```python
+# schemas.py
+class DeletionReasonSchema(Schema):
+    reason = StringField(required=True, validate=Length(min=10))
+
+# routes.py
+product_routes_config = {
+    "delete": {
+        "permission": "delete:product",
+        "input_schema": {
+            "schema": DeletionReasonSchema,
+            "location": "json"
+        }
+    }
+}
+```
+الآن، عند استدعاء `DELETE /products/<uuid>`، يجب على العميل توفير جسم طلب يحتوي على حقل `reason`. ستكون هذه البيانات متاحة لك داخل `pre_delete_hook` في الخدمة الخاصة بك لمعالجتها (مثل تسجيلها في سجل التدقيق).
