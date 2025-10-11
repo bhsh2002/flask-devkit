@@ -169,15 +169,31 @@ def _get_schema_details(schema_info, default_location=None):
 
 
 def _prepare_input_schemes(
-    route_cfg: Dict[str, Any], default_schema: Any
+    route_cfg: Dict[str, Any], default_schema: Any, http_method: str
 ) -> List[Dict[str, Any]]:
-    """Normalizes input schema config to a list of dicts."""
+    """Normalizes input schema config to a list of dicts, injecting default location."""
     input_schema_config = route_cfg.get("input_schema", default_schema)
     if not input_schema_config:
         return []
-    if isinstance(input_schema_config, list):
-        return input_schema_config
-    return [input_schema_config]
+
+    configs = (
+        input_schema_config
+        if isinstance(input_schema_config, list)
+        else [input_schema_config]
+    )
+
+    normalized_configs = []
+    default_location = "query" if http_method == "GET" else "json"
+
+    for config in configs:
+        schema_dict = config if isinstance(config, dict) else {"schema": config}
+        
+        if "location" not in schema_dict:
+            schema_dict["location"] = default_location
+            
+        normalized_configs.append(schema_dict)
+
+    return normalized_configs
 
 
 def _merge_schema_data(
@@ -235,7 +251,7 @@ def register_crud_routes(
         )
         decorators = route_cfg.get("decorators")
 
-        input_schema_configs = _prepare_input_schemes(route_cfg, default_input)
+        input_schema_configs = _prepare_input_schemes(route_cfg, default_input, http_method)
         output_schema_info = route_cfg.get("output_schema", default_output)
         output_schema, _, _ = _get_schema_details(output_schema_info)
 
@@ -271,6 +287,7 @@ def register_crud_routes(
         for config in reversed(input_schema_configs):
             schema, location, arg_name = _get_schema_details(config)
             schema_instance = schema(partial=True) if route_name == "update" else schema
+
             final_view = bp.input(
                 schema_instance, location=location, arg_name=arg_name
             )(final_view)
